@@ -46,6 +46,10 @@ export default function ScanReceipt() {
   const startCamera = async () => {
     setError(null);
     try {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error("Camera API is not supported in this browser or context.");
+      }
+
       let mediaStream: MediaStream;
       try {
         mediaStream = await navigator.mediaDevices.getUserMedia({ 
@@ -95,11 +99,16 @@ export default function ScanReceipt() {
         return;
       }
 
+      const video = videoRef.current;
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        timeoutId = setTimeout(attemptAutoScan, 500);
+        return;
+      }
+
       isProcessingRef.current = true;
       setIsAutoAnalyzing(true);
 
       try {
-        const video = videoRef.current;
         const canvas = canvasRef.current;
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
@@ -179,6 +188,13 @@ export default function ScanReceipt() {
     setError(null);
 
     const video = videoRef.current;
+    if (video.videoWidth === 0 || video.videoHeight === 0) {
+      setError("Camera is still initializing. Please wait a moment.");
+      setIsManualProcessing(false);
+      isProcessingRef.current = false;
+      return;
+    }
+
     const canvas = canvasRef.current;
     
     canvas.width = video.videoWidth;
@@ -293,12 +309,23 @@ export default function ScanReceipt() {
                   </div>
                   <h3 className="text-xl font-semibold mb-2 text-red-600 dark:text-red-400">Analysis Failed</h3>
                   <p className="text-zinc-600 dark:text-zinc-400 mb-6">{error}</p>
-                  <button 
-                    onClick={resetScanner}
-                    className="px-6 py-3 bg-zinc-900 dark:bg-zinc-800 text-white rounded-xl hover:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors"
-                  >
-                    Try Again
-                  </button>
+                  <div className="flex flex-col gap-3 w-full max-w-xs">
+                    <button 
+                      onClick={resetScanner}
+                      className="w-full px-6 py-3 bg-zinc-900 dark:bg-zinc-800 text-white rounded-xl hover:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors"
+                    >
+                      Try Again
+                    </button>
+                    <button 
+                      onClick={() => {
+                        stopCamera();
+                        navigate('/dashboard');
+                      }}
+                      className="w-full px-6 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      Upload from Dashboard
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <>
@@ -306,6 +333,10 @@ export default function ScanReceipt() {
                     ref={videoRef} 
                     autoPlay 
                     playsInline 
+                    muted
+                    onLoadedMetadata={() => {
+                      videoRef.current?.play().catch(console.error);
+                    }}
                     className={`w-full h-full object-cover ${isManualProcessing ? 'opacity-50 blur-sm' : ''}`}
                   />
                   <canvas ref={canvasRef} className="hidden" />
@@ -343,7 +374,17 @@ export default function ScanReceipt() {
                     </div>
                   </div>
 
-                  <div className="absolute bottom-8 left-0 right-0 flex justify-center z-20">
+                  <div className="absolute bottom-8 left-0 right-0 flex justify-center items-center gap-6 z-20">
+                    <button
+                      onClick={() => {
+                        stopCamera();
+                        navigate('/dashboard');
+                      }}
+                      className="w-12 h-12 bg-black/50 backdrop-blur-md rounded-full border border-white/20 flex items-center justify-center hover:bg-black/70 transition-colors"
+                      title="Upload from Dashboard"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    </button>
                     <button
                       onClick={captureAndProcessManual}
                       disabled={isManualProcessing || !stream}
@@ -355,6 +396,7 @@ export default function ScanReceipt() {
                         <Camera size={32} className="text-white dark:text-zinc-900" />
                       )}
                     </button>
+                    <div className="w-12 h-12" /> {/* Spacer for centering */}
                   </div>
 
                   {isManualProcessing && (

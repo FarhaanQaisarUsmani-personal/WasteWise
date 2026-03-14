@@ -1,7 +1,5 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import { collection, addDoc } from 'firebase/firestore';
-import { auth, db } from '../firebase';
-import { handleFirestoreError, OperationType } from '../firestoreError';
+import { auth } from '../firebase';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -100,27 +98,19 @@ Always return structured JSON-style responses.`;
     }
   });
 
-  const jsonStr = response.text?.trim() || "{}";
-  const parsedData = JSON.parse(jsonStr) as ProcessResult;
-
+  let jsonStr = response.text?.trim() || "{}";
+  if (jsonStr.startsWith('```json')) {
+    jsonStr = jsonStr.replace(/```json\n?/, '').replace(/```\n?$/, '').trim();
+  } else if (jsonStr.startsWith('```')) {
+    jsonStr = jsonStr.replace(/```\n?/, '').replace(/```\n?$/, '').trim();
+  }
+  
+  let parsedData: ProcessResult;
   try {
-    if (parsedData.type === 'receipt') {
-      await addDoc(collection(db, 'receipts'), {
-        userId: auth.currentUser.uid,
-        items: parsedData.items || [],
-        createdAt: new Date().toISOString()
-      });
-    } else if (parsedData.type === 'food') {
-      await addDoc(collection(db, 'food_scans'), {
-        userId: auth.currentUser.uid,
-        item: parsedData.item || 'Unknown Food',
-        condition: parsedData.condition || 'Unknown',
-        suggestions: parsedData.suggestions || [],
-        createdAt: new Date().toISOString()
-      });
-    }
-  } catch (dbError) {
-    handleFirestoreError(dbError, OperationType.CREATE, parsedData.type === 'receipt' ? 'receipts' : 'food_scans');
+    parsedData = JSON.parse(jsonStr) as ProcessResult;
+  } catch (e) {
+    console.error("Failed to parse JSON from Gemini:", jsonStr);
+    parsedData = { type: 'unknown', message: 'Failed to process image format.' };
   }
 
   return parsedData;
