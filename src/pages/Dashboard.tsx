@@ -5,6 +5,7 @@ import { auth, db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../firestoreError';
 import { ArrowLeft, Receipt, ShoppingBag, TrendingUp, UploadCloud, Loader2, Sun, Moon, Apple, X, User as UserIcon } from 'lucide-react';
 import { motion } from 'motion/react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
 import { processImage } from '../services/imageProcessor';
 import { uploadImageToStorage } from '../services/storageService';
 import { useTheme } from '../components/ThemeProvider';
@@ -38,6 +39,8 @@ export default function Dashboard() {
   const [isUploading, setIsUploading] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<ActivityData | null>(null);
   const [displayName, setDisplayName] = useState('');
+  const [timeFilter, setTimeFilter] = useState<'daily' | 'weekly' | 'monthly' | 'yearly'>('weekly');
+  const [showAllActivity, setShowAllActivity] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -170,6 +173,26 @@ export default function Dashboard() {
     return sum + 1; // food scan counts as 1 item
   }, 0);
 
+  const now = new Date();
+  const filteredActivities = activities.filter(activity => {
+    const activityDate = new Date(activity.createdAt);
+    const diffTime = Math.abs(now.getTime() - activityDate.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    switch (timeFilter) {
+      case 'daily': return diffDays <= 1;
+      case 'weekly': return diffDays <= 7;
+      case 'monthly': return diffDays <= 30;
+      case 'yearly': return diffDays <= 365;
+      default: return true;
+    }
+  });
+
+  const pieData = [
+    { name: 'Receipts', value: filteredActivities.filter(a => a.type === 'receipt').length, color: '#10b981' }, // emerald-500
+    { name: 'Food Scans', value: filteredActivities.filter(a => a.type === 'food').length, color: '#3b82f6' }, // blue-500
+  ].filter(d => d.value > 0);
+
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-6 transition-colors duration-300">
       <div className="max-w-5xl mx-auto">
@@ -261,7 +284,69 @@ export default function Dashboard() {
           </div>
         </div>
 
-        <h2 className="text-2xl font-bold text-zinc-900 dark:text-white mb-6">Recent Activity</h2>
+        {/* Analytics Section */}
+        <div className="bg-white dark:bg-zinc-900 p-6 rounded-3xl shadow-sm border border-zinc-100 dark:border-zinc-800 mb-12">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
+            <h2 className="text-xl font-bold text-zinc-900 dark:text-white">Activity Breakdown</h2>
+            <div className="flex bg-zinc-100 dark:bg-zinc-800 p-1 rounded-xl">
+              {(['daily', 'weekly', 'monthly', 'yearly'] as const).map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setTimeFilter(filter)}
+                  className={`px-4 py-1.5 rounded-lg text-sm font-medium capitalize transition-colors ${
+                    timeFilter === filter
+                      ? 'bg-white dark:bg-zinc-700 text-zinc-900 dark:text-white shadow-sm'
+                      : 'text-zinc-500 dark:text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-300'
+                  }`}
+                >
+                  {filter}
+                </button>
+              ))}
+            </div>
+          </div>
+          
+          <div className="h-[300px] w-full">
+            {pieData.length > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={60}
+                    outerRadius={100}
+                    paddingAngle={5}
+                    dataKey="value"
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip 
+                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  />
+                  <Legend verticalAlign="bottom" height={36} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="h-full flex items-center justify-center text-zinc-500 dark:text-zinc-400">
+                No activity in this period
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex items-center justify-between mb-6">
+          <h2 className="text-2xl font-bold text-zinc-900 dark:text-white">Recent Activity</h2>
+          {activities.length > 4 && (
+            <button
+              onClick={() => setShowAllActivity(!showAllActivity)}
+              className="text-sm font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
+            >
+              {showAllActivity ? 'Show Less' : 'Show More'}
+            </button>
+          )}
+        </div>
 
         {loading ? (
           <div className="flex justify-center py-12">
@@ -281,7 +366,7 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {activities.map((activity) => (
+            {activities.slice(0, showAllActivity ? undefined : 4).map((activity) => (
               <motion.div
                 key={activity.id}
                 initial={{ opacity: 0, y: 10 }}
