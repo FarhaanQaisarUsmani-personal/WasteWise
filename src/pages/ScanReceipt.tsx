@@ -1,11 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { ArrowLeft, Camera, CheckCircle2, Loader2, RefreshCw, AlertCircle, Scan } from 'lucide-react';
+import { ArrowLeft, Camera, CheckCircle2, Loader2, RefreshCw, AlertCircle, Scan, User as UserIcon } from 'lucide-react';
 import { processImage, ProcessResult } from '../services/imageProcessor';
 import { uploadImageToStorage } from '../services/storageService';
 import { db, auth } from '../firebase';
-import { collection, addDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
 
 export default function ScanReceipt() {
   const navigate = useNavigate();
@@ -17,10 +17,26 @@ export default function ScanReceipt() {
   const [result, setResult] = useState<ProcessResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [displayName, setDisplayName] = useState('');
 
   const isProcessingRef = useRef(false);
   const successRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (auth.currentUser) {
+        const userRef = doc(db, 'users', auth.currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          setDisplayName(userSnap.data().displayName || auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'User');
+        } else {
+          setDisplayName(auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'User');
+        }
+      }
+    };
+    fetchProfile();
+  }, []);
 
   useEffect(() => {
     successRef.current = success;
@@ -236,17 +252,35 @@ export default function ScanReceipt() {
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white p-6 flex flex-col transition-colors duration-300">
       <div className="max-w-3xl mx-auto w-full flex-1 flex flex-col">
-        <header className="flex items-center gap-4 mb-8">
+        <header className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-4">
+            <button
+              onClick={() => {
+                stopCamera();
+                navigate('/');
+              }}
+              className="p-3 bg-white dark:bg-zinc-800 rounded-full shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+            >
+              <ArrowLeft size={24} className="text-zinc-700 dark:text-zinc-300" />
+            </button>
+            <h1 className="text-3xl font-bold">Scan Receipt or Food</h1>
+          </div>
           <button
             onClick={() => {
               stopCamera();
-              navigate('/');
+              navigate('/profile');
             }}
-            className="p-3 bg-white dark:bg-zinc-800 rounded-full shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-700 transition-colors"
+            className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full shadow-sm transition-colors font-medium"
           >
-            <ArrowLeft size={24} className="text-zinc-700 dark:text-zinc-300" />
+            <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/50 rounded-full flex items-center justify-center text-emerald-700 dark:text-emerald-400 overflow-hidden">
+              {auth.currentUser?.photoURL ? (
+                <img src={auth.currentUser.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+              ) : (
+                <UserIcon size={16} />
+              )}
+            </div>
+            <span className="hidden sm:inline">{displayName}</span>
           </button>
-          <h1 className="text-3xl font-bold">Scan Receipt or Food</h1>
         </header>
 
         <div className="flex-1 flex flex-col items-center justify-center relative bg-black rounded-3xl overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800">

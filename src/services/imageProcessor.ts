@@ -1,5 +1,7 @@
 import { GoogleGenAI, Type } from '@google/genai';
-import { auth } from '../firebase';
+import { collection, addDoc } from 'firebase/firestore';
+import { auth, db } from '../firebase';
+import { handleFirestoreError, OperationType } from '../firestoreError';
 
 const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
@@ -100,6 +102,26 @@ Always return structured JSON-style responses.`;
 
   const jsonStr = response.text?.trim() || "{}";
   const parsedData = JSON.parse(jsonStr) as ProcessResult;
+
+  try {
+    if (parsedData.type === 'receipt') {
+      await addDoc(collection(db, 'receipts'), {
+        userId: auth.currentUser.uid,
+        items: parsedData.items || [],
+        createdAt: new Date().toISOString()
+      });
+    } else if (parsedData.type === 'food') {
+      await addDoc(collection(db, 'food_scans'), {
+        userId: auth.currentUser.uid,
+        item: parsedData.item || 'Unknown Food',
+        condition: parsedData.condition || 'Unknown',
+        suggestions: parsedData.suggestions || [],
+        createdAt: new Date().toISOString()
+      });
+    }
+  } catch (dbError) {
+    handleFirestoreError(dbError, OperationType.CREATE, parsedData.type === 'receipt' ? 'receipts' : 'food_scans');
+  }
 
   return parsedData;
 }

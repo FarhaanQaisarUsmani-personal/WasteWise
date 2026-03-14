@@ -50,10 +50,10 @@ export default function LoginScreen() {
         animate={{ opacity: 1, y: 0 }}
         className="w-full max-w-md bg-white dark:bg-zinc-900 rounded-3xl shadow-xl overflow-hidden border border-zinc-100 dark:border-zinc-800 transition-colors"
       >
-        <div className="bg-[#6b8059] p-8 text-center transition-colors">
-          <div className="flex justify-center mb-4">
-            <div className="bg-[#5a6b4a] p-3 rounded-2xl shadow-inner">
-              <Logo size={40} className="text-[#d4d9c6]" />
+        <div className="bg-[#617953] p-8 text-center transition-colors">
+          <div className="flex justify-center mb-6">
+            <div className="bg-[#516545] p-5 rounded-3xl shadow-inner">
+              <Logo size={80} className="text-[#d4d9c6]" />
             </div>
           </div>
           <h2 className="text-3xl font-bold text-white mb-2">Welcome Back</h2>

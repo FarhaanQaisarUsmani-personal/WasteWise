@@ -11,6 +11,7 @@ import LoginScreen from './pages/LoginScreen';
 import HomeMenu from './pages/HomeMenu';
 import Dashboard from './pages/Dashboard';
 import ScanReceipt from './pages/ScanReceipt';
+import Profile from './pages/Profile';
 
 export const AuthContext = React.createContext<{ user: User | null; isAuthReady: boolean }>({
   user: null,
@@ -67,6 +68,7 @@ function AppContent() {
           <Route path="/" element={user ? <HomeMenu /> : <Navigate to="/login" />} />
           <Route path="/dashboard" element={user ? <Dashboard /> : <Navigate to="/login" />} />
           <Route path="/scan" element={user ? <ScanReceipt /> : <Navigate to="/login" />} />
+          <Route path="/profile" element={user ? <Profile /> : <Navigate to="/login" />} />
         </Routes>
       </Router>
     </AuthContext.Provider>

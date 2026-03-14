@@ -10,6 +10,7 @@ service cloud.firestore {
     //   - uid: string (required, immutable)
     //   - email: string (required, immutable)
     //   - displayName: string (optional)
+    //   - phoneNumber: string (optional)
     //   - createdAt: timestamp (required, immutable)
     //
     // Collection: receipts
@@ -58,6 +59,10 @@ service cloud.firestore {
       return !('uid' in request.resource.data) || request.resource.data.uid == resource.data.uid;
     }
 
+    function createdAtNotModified() {
+      return !('createdAt' in resource.data) || request.resource.data.createdAt == resource.data.createdAt;
+    }
+
     function userIdNotModified() {
       return !('userId' in request.resource.data) || request.resource.data.userId == resource.data.userId;
     }
@@ -75,7 +80,8 @@ service cloud.firestore {
              data.uid is string &&
              data.email is string && isValidEmail(data.email) &&
              data.createdAt is string && isValidDateString(data.createdAt) &&
-             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100));
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100)) &&
+             (!('phoneNumber' in data) || (data.phoneNumber is string && data.phoneNumber.size() < 20));
     }
 
     function isValidReceipt(data) {
@@ -99,7 +105,7 @@ service cloud.firestore {
     match /users/{userId} {
       allow read: if isOwner(userId);
       allow create: if isOwner(userId) && isValidUser(request.resource.data) && uidUnchanged();
-      allow update: if isOwner(userId) && isValidUser(request.resource.data) && uidNotModified() && request.resource.data.createdAt == resource.data.createdAt;
+      allow update: if isOwner(userId) && isValidUser(request.resource.data) && uidNotModified() && createdAtNotModified();
       allow delete: if isOwner(userId);
     }
 

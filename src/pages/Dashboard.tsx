@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, onSnapshot, orderBy, addDoc } from 'firebase/firestore';
+import { collection, query, where, onSnapshot, orderBy, addDoc, doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../firestoreError';
-import { ArrowLeft, Receipt, ShoppingBag, TrendingUp, UploadCloud, Loader2, Sun, Moon, Apple, X } from 'lucide-react';
+import { ArrowLeft, Receipt, ShoppingBag, TrendingUp, UploadCloud, Loader2, Sun, Moon, Apple, X, User as UserIcon } from 'lucide-react';
 import { motion } from 'motion/react';
 import { processImage } from '../services/imageProcessor';
 import { uploadImageToStorage } from '../services/storageService';
@@ -37,7 +37,23 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
   const [selectedActivity, setSelectedActivity] = useState<ActivityData | null>(null);
+  const [displayName, setDisplayName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (auth.currentUser) {
+        const userRef = doc(db, 'users', auth.currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          setDisplayName(userSnap.data().displayName || auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'User');
+        } else {
+          setDisplayName(auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'User');
+        }
+      }
+    };
+    fetchProfile();
+  }, []);
 
   useEffect(() => {
     if (!auth.currentUser) return;
@@ -165,15 +181,28 @@ export default function Dashboard() {
             >
               <ArrowLeft size={24} className="text-zinc-700 dark:text-zinc-300" />
             </button>
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-[#6b8059] rounded-xl flex items-center justify-center text-[#d4d9c6] shadow-md">
-                <Logo size={24} />
+            <div className="flex items-center gap-4">
+              <div className="w-14 h-14 bg-[#617953] rounded-2xl flex items-center justify-center text-[#d4d9c6] shadow-md">
+                <Logo size={40} />
               </div>
               <h1 className="text-3xl font-bold text-zinc-900 dark:text-white">Dashboard</h1>
             </div>
           </div>
           
           <div className="flex items-center gap-3 w-full sm:w-auto">
+            <button
+              onClick={() => navigate('/profile')}
+              className="flex items-center gap-2 px-4 py-2 bg-white dark:bg-zinc-900 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full shadow-sm transition-colors font-medium"
+            >
+              <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/50 rounded-full flex items-center justify-center text-emerald-700 dark:text-emerald-400 overflow-hidden">
+                {auth.currentUser?.photoURL ? (
+                  <img src={auth.currentUser.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <UserIcon size={16} />
+                )}
+              </div>
+              <span className="hidden sm:inline">{displayName}</span>
+            </button>
             <button
               onClick={toggleTheme}
               className="p-3 bg-white dark:bg-zinc-900 rounded-full shadow-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"

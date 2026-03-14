@@ -1,15 +1,32 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
-import { LayoutDashboard, ScanLine, LogOut, Sun, Moon } from 'lucide-react';
-import { auth } from '../firebase';
+import { LayoutDashboard, ScanLine, LogOut, Sun, Moon, User as UserIcon } from 'lucide-react';
+import { auth, db } from '../firebase';
 import { signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
 import { useTheme } from '../components/ThemeProvider';
 import Logo from '../components/Logo';
 
 export default function HomeMenu() {
   const navigate = useNavigate();
   const { theme, toggleTheme } = useTheme();
+  const [displayName, setDisplayName] = useState('');
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      if (auth.currentUser) {
+        const userRef = doc(db, 'users', auth.currentUser.uid);
+        const userSnap = await getDoc(userRef);
+        if (userSnap.exists()) {
+          setDisplayName(userSnap.data().displayName || auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'User');
+        } else {
+          setDisplayName(auth.currentUser.displayName || auth.currentUser.email?.split('@')[0] || 'User');
+        }
+      }
+    };
+    fetchProfile();
+  }, []);
 
   const handleLogout = async () => {
     await signOut(auth);
@@ -37,15 +54,28 @@ export default function HomeMenu() {
 
       <div className="z-10 w-full max-w-4xl">
         <div className="flex justify-between items-center mb-12">
-          <div className="flex items-center gap-3">
-            <div className="w-12 h-12 bg-[#6b8059] rounded-xl flex items-center justify-center text-[#d4d9c6] shadow-md">
-              <Logo size={32} />
+          <div className="flex items-center gap-6">
+            <div className="w-28 h-28 bg-[#617953] rounded-3xl flex items-center justify-center text-[#d4d9c6] shadow-lg">
+              <Logo size={96} />
             </div>
-            <h1 className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight">
+            <h1 className="text-5xl font-bold text-zinc-900 dark:text-white tracking-tight">
               WasteWise
             </h1>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => navigate('/profile')}
+              className="flex items-center gap-2 px-4 py-2 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 rounded-full transition-colors font-medium"
+            >
+              <div className="w-8 h-8 bg-emerald-100 dark:bg-emerald-900/50 rounded-full flex items-center justify-center text-emerald-700 dark:text-emerald-400 overflow-hidden">
+                {auth.currentUser?.photoURL ? (
+                  <img src={auth.currentUser.photoURL} alt="Profile" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                ) : (
+                  <UserIcon size={16} />
+                )}
+              </div>
+              <span className="hidden sm:inline">{displayName}</span>
+            </button>
             <button
               onClick={toggleTheme}
               className="p-3 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:bg-zinc-200/50 dark:hover:bg-zinc-800/50 rounded-full transition-colors"

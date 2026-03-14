@@ -4,7 +4,7 @@ import Logo from '../components/Logo';
 
 export default function SplashScreen() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#6b8059] text-[#d4d9c6]">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#617953] text-[#d4d9c6]">
       <motion.div
         initial={{ scale: 0.5, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -16,7 +16,7 @@ export default function SplashScreen() {
           transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
           className="mb-6"
         >
-          <Logo size={80} />
+          <Logo size={160} />
         </motion.div>
         <motion.h1
           initial={{ y: 20, opacity: 0 }}

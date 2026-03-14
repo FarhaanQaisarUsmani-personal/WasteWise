@@ -1,16 +1,19 @@
+import React from 'react';
+
 interface LogoProps {
-  size?: number;
   className?: string;
+  size?: number;
 }
 
-export default function Logo({ size = 40, className = '' }: LogoProps) {
+export default function Logo({ className = '', size = 48 }: LogoProps) {
   return (
-    <img
-      src="/Wise.png"
-      alt="WasteWise Logo"
-      width={size}
-      height={size}
-      className={className}
+    <img 
+      src="/Wise.png" 
+      alt="WISE Logo" 
+      width={size} 
+      height={size} 
+      className={`object-contain ${className}`} 
+      referrerPolicy="no-referrer"
     />
   );
 }
