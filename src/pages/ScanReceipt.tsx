@@ -443,11 +443,11 @@ export default function ScanReceipt() {
                         </div>
                       </div>
                       <h2 className="text-3xl font-bold text-zinc-900 dark:text-white text-center mb-2">
-                        Analysis Complete
+                        Scan Complete
                       </h2>
                       <p className="text-center text-zinc-500 dark:text-zinc-400 mb-6">
                         {result.type === 'food'
-                          ? 'Your trained model classified the captured item.'
+                          ? 'Detected by your trained model.'
                           : result.message || 'The scan is complete.'}
                       </p>
 
@@ -456,58 +456,19 @@ export default function ScanReceipt() {
                           <div className="rounded-2xl bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 p-5">
                             <div className="flex items-start justify-between gap-4 mb-4">
                               <div>
-                                <p className="text-xs uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400 mb-2">Detected Item</p>
+                                <p className="text-xs uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400 mb-2">Food Type</p>
                                 <h3 className="text-2xl font-bold text-zinc-900 dark:text-white capitalize">{result.item}</h3>
                               </div>
                               {typeof result.confidence === 'number' && (
                                 <div className="rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 px-3 py-1.5 text-sm font-semibold">
-                                  {Math.round(result.confidence * 100)}% confidence
+                                  Score: {Math.round(result.confidence * 100)}%
                                 </div>
                               )}
                             </div>
-                            <p className="text-zinc-600 dark:text-zinc-300">
-                              Condition: <span className="font-semibold text-zinc-900 dark:text-white capitalize">{result.condition}</span>
-                              {typeof result.conditionConfidence === 'number' && (
-                                <span className="text-zinc-500 dark:text-zinc-400"> ({Math.round(result.conditionConfidence * 100)}%)</span>
-                              )}
-                            </p>
+                            {result.message && (
+                              <p className="text-zinc-600 dark:text-zinc-300">{result.message}</p>
+                            )}
                           </div>
-
-                          {result.topPredictions && result.topPredictions.length > 0 && (
-                            <div className="rounded-2xl bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 p-5">
-                              <h4 className="font-semibold text-zinc-900 dark:text-white mb-3">Top Predictions</h4>
-                              <div className="space-y-3">
-                                {result.topPredictions.map((prediction) => (
-                                  <div key={prediction.label}>
-                                    <div className="flex items-center justify-between text-sm mb-1.5">
-                                      <span className="text-zinc-700 dark:text-zinc-200 capitalize">{prediction.label}</span>
-                                      <span className="text-zinc-500 dark:text-zinc-400">{Math.round(prediction.confidence * 100)}%</span>
-                                    </div>
-                                    <div className="h-2 rounded-full bg-zinc-200 dark:bg-zinc-700 overflow-hidden">
-                                      <div
-                                        className="h-full rounded-full bg-emerald-500"
-                                        style={{ width: `${Math.max(8, prediction.confidence * 100)}%` }}
-                                      />
-                                    </div>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {result.suggestions && result.suggestions.length > 0 && (
-                            <div className="rounded-2xl bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 p-5">
-                              <h4 className="font-semibold text-zinc-900 dark:text-white mb-3">Use It Now</h4>
-                              <ul className="space-y-2.5">
-                                {result.suggestions.map((suggestion, index) => (
-                                  <li key={index} className="flex items-start gap-3 text-sm text-zinc-700 dark:text-zinc-300">
-                                    <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
-                                    <span>{suggestion}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
                         </div>
                       )}
 

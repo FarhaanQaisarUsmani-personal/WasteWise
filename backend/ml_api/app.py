@@ -1,8 +1,11 @@
 import base64
 import io
+import json
 import math
 import os
 from typing import Literal
+from urllib import error as urlerror
+from urllib import request as urlrequest
 
 import torch
 from fastapi import FastAPI, HTTPException
@@ -20,6 +23,7 @@ DEFAULT_SPOILAGE_LABELS = ["fresh", "ripe", "aging", "overripe", "spoiled"]
 IMAGE_MEAN = [0.485, 0.456, 0.406]
 IMAGE_STD = [0.229, 0.224, 0.225]
 DEFAULT_UNKNOWN_LABELS = "non_food,non-food,non food,background,other,unknown,not_food"
+DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
 
 MODEL_RUNTIME_CACHE: dict[str, object | None] = {"bundle": None, "mtime": None}
 
@@ -38,6 +42,107 @@ class AnalyzeResponse(BaseModel):
     confidence: float | None = None
     conditionConfidence: float | None = None
     topPredictions: list[dict[str, float | str]] | None = None
+
+
+class GeminiOutputGenerator:
+    def __init__(self):
+        self.api_key = os.getenv("GEMINI_API_KEY", "").strip()
+        self.model = os.getenv("GEMINI_MODEL", DEFAULT_GEMINI_MODEL).strip() or DEFAULT_GEMINI_MODEL
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.api_key)
+
+    def generate_food_analysis(
+        self,
+        item: str,
+        condition: str,
+        confidence: float,
+        top_predictions: list[dict[str, float | str]],
+    ) -> str | None:
+        if not self.enabled:
+            return None
+
+        top_str = ", ".join(
+            [f"{prediction['label']} ({prediction['confidence']})" for prediction in top_predictions]
+        )
+        prompt = (
+            "You are helping the WasteWise app summarize model food-scan results. "
+            "Return strict JSON only with this schema: "
+            '{"message": string}. '
+            "Keep message under 140 characters. "
+            "Give a short user-friendly confirmation of detected food type and confidence. "
+            f"Detected item: {item}. Condition: {condition}. Confidence: {confidence}. "
+            f"Top predictions: {top_str}."
+        )
+        output = self._generate_json(prompt)
+        if not isinstance(output, dict):
+            return None
+
+        message = output.get("message")
+        return message if isinstance(message, str) else None
+
+    def generate_non_food_analysis(
+        self,
+        top_predictions: list[dict[str, float | str]],
+        reason: str,
+    ) -> str | None:
+        if not self.enabled:
+            return None
+
+        top_str = ", ".join(
+            [f"{prediction['label']} ({prediction['confidence']})" for prediction in top_predictions]
+        )
+        prompt = (
+            "You are helping the WasteWise app explain non-food rejection from a model scan. "
+            "Return strict JSON only with this schema: "
+            '{"message": string}. '
+            "Keep message under 120 characters. "
+            "It should clearly tell the user this is not food and to try again. "
+            f"Reason: {reason}. "
+            f"Top predictions: {top_str}."
+        )
+        output = self._generate_json(prompt)
+        if not isinstance(output, dict):
+            return None
+
+        message = output.get("message")
+        return message if isinstance(message, str) else None
+
+    def _generate_json(self, prompt: str) -> dict | None:
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "responseMimeType": "application/json",
+                "temperature": 0.3,
+            },
+        }
+        endpoint = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/{self.model}:generateContent"
+            f"?key={self.api_key}"
+        )
+        request_data = json.dumps(payload).encode("utf-8")
+        req = urlrequest.Request(
+            endpoint,
+            data=request_data,
+            headers={"Content-Type": "application/json"},
+            method="POST",
+        )
+
+        try:
+            with urlrequest.urlopen(req, timeout=8) as response:
+                body = response.read().decode("utf-8")
+            parsed = json.loads(body)
+            candidates = parsed.get("candidates", [])
+            if not candidates:
+                return None
+            parts = candidates[0].get("content", {}).get("parts", [])
+            if not parts:
+                return None
+            text = parts[0].get("text", "")
+            return json.loads(text)
+        except (urlerror.URLError, json.JSONDecodeError, TimeoutError, ValueError):
+            return None
 
 
 class WasteWiseClassifier(nn.Module):
@@ -143,6 +248,7 @@ class ModelBundle:
         self.entropy_threshold = float(os.getenv("MODEL_ENTROPY_THRESHOLD", "0.72"))
         self.spoilage_threshold = float(os.getenv("MODEL_SPOILAGE_CONFIDENCE_THRESHOLD", "0.40"))
         self.is_food_threshold = float(os.getenv("MODEL_IS_FOOD_THRESHOLD", "0.60"))
+        self.gemini = GeminiOutputGenerator()
 
         self.model = WasteWiseClassifier(
             model_name=self.model_name,
@@ -199,20 +305,27 @@ class ModelBundle:
         food_index = int(top_indices[0].item())
         predicted_label = self.idx_to_food[food_index]
 
+        top_predictions = self._top_predictions(top_values, top_indices)
+
         if predicted_label.lower() in self.unknown_labels:
+            reason = "predicted class is configured as non-food/unknown"
+            unknown_message = self.gemini.generate_non_food_analysis(top_predictions, reason)
             return AnalyzeResponse(
                 type="unknown",
-                message="This object looks non-food to the model. Please scan a food item.",
+                message=unknown_message
+                or "This object looks non-food to the model. Please scan a food item.",
                 confidence=round(top_confidence, 4),
-                topPredictions=self._top_predictions(top_values, top_indices),
+                topPredictions=top_predictions,
             )
 
         if is_food_prob is not None and is_food_prob < self.is_food_threshold:
+            reason = "model is_food head confidence is below threshold"
+            unknown_message = self.gemini.generate_non_food_analysis(top_predictions, reason)
             return AnalyzeResponse(
                 type="unknown",
-                message="The model identified this as non-food. Please scan a food item.",
+                message=unknown_message or "The model identified this as non-food. Please scan a food item.",
                 confidence=round(is_food_prob, 4),
-                topPredictions=self._top_predictions(top_values, top_indices),
+                topPredictions=top_predictions,
             )
 
         if (
@@ -221,14 +334,17 @@ class ModelBundle:
             or entropy > self.entropy_threshold
             or spoilage_top_confidence < self.spoilage_threshold
         ):
+            reason = "model confidence checks failed for known food classes"
+            unknown_message = self.gemini.generate_non_food_analysis(top_predictions, reason)
             return AnalyzeResponse(
                 type="unknown",
-                message=(
+                message=unknown_message
+                or (
                     "This scan does not confidently match a known food item. "
                     "Try centering a clear food close-up and scan again."
                 ),
                 confidence=round(top_confidence, 4),
-                topPredictions=self._top_predictions(top_values, top_indices),
+                topPredictions=top_predictions,
             )
 
         spoilage_index = int(torch.argmax(spoilage_probs).item()) if spoilage_probs is not None else -1
@@ -236,15 +352,25 @@ class ModelBundle:
             float(spoilage_probs[spoilage_index].item()) if spoilage_probs is not None else None
         )
         condition = self.spoilage_labels[spoilage_index] if spoilage_probs is not None else "unknown"
+        gemini_message = self.gemini.generate_food_analysis(
+            item=predicted_label,
+            condition=condition,
+            confidence=top_confidence,
+            top_predictions=top_predictions,
+        )
+        fallback_message = (
+            f"Detected {predicted_label} with {round(top_confidence * 100)}% confidence."
+        )
 
         return AnalyzeResponse(
             type="food",
             item=predicted_label,
             condition=condition,
-            suggestions=self._suggestions_for(condition),
+            suggestions=None,
+            message=gemini_message or fallback_message,
             confidence=round(top_confidence, 4),
             conditionConfidence=round(spoilage_confidence, 4) if spoilage_confidence is not None else None,
-            topPredictions=self._top_predictions(top_values, top_indices),
+            topPredictions=None,
         )
 
     def _top_predictions(
@@ -281,27 +407,6 @@ class ModelBundle:
             return float(probs[1].item())
 
         return None
-
-    def _suggestions_for(self, condition: str) -> list[str]:
-        normalized = condition.lower()
-        if normalized in {"fresh", "ripe"}:
-            return [
-                "Store it properly now to extend shelf life.",
-                "Use it in your next meal while quality is high.",
-            ]
-        if normalized in {"aging", "overripe"}:
-            return [
-                "Use it today in smoothies, soups, sauces, or stir-fries.",
-                "Cut and freeze leftovers before quality drops further.",
-                "Prep it now so it does not get forgotten in storage.",
-            ]
-        if normalized == "spoiled":
-            return [
-                "Inspect it closely before eating and discard it if there are signs of mold or off odors.",
-                "Separate it from other produce to avoid spreading spoilage.",
-            ]
-        return ["Review the image manually if the condition does not look right."]
-
 
 def get_model_bundle() -> ModelBundle:
     if not os.path.exists(MODEL_PATH):
