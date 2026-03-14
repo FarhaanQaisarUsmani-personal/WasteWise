@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowLeft, Camera, CheckCircle2, Loader2, RefreshCw, AlertCircle, Scan, User as UserIcon } from 'lucide-react';
-import { processImage, ProcessResult } from '../services/imageProcessor';
+import { processImage, ProcessResult } from '../services/testImageProcessor';
 import { uploadImageToStorage } from '../services/storageService';
 import { db, auth } from '../firebase';
 import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
@@ -116,7 +116,7 @@ export default function ScanReceipt() {
         
         if (ctx) {
           ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.5); // Lower quality for faster auto-scan
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.95); // Higher quality for better AI recognition
           const base64Data = dataUrl.split(',')[1];
 
           const res = await processImage(base64Data, 'image/jpeg');
@@ -131,16 +131,16 @@ export default function ScanReceipt() {
                 if (res.type === 'receipt') {
                   await addDoc(collection(db, 'receipts'), {
                     userId,
-                    items: res.items || [],
+                    items: res.data.items || [],
                     createdAt: now,
                     imageUrl: imageUrl || null
                   });
                 } else if (res.type === 'food') {
                   await addDoc(collection(db, 'food_scans'), {
                     userId,
-                    item: res.item || 'Unknown',
-                    condition: res.condition || 'Unknown',
-                    suggestions: res.suggestions || [],
+                    item: res.data.item || 'Unknown',
+                    condition: res.data.ripeness || 'Unknown',
+                    suggestions: res.data.advice ? [res.data.advice.recipe, res.data.advice.preservation] : [],
                     createdAt: now,
                     imageUrl: imageUrl || null
                   });
@@ -209,13 +209,13 @@ export default function ScanReceipt() {
     }
 
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+    const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
     const base64Data = dataUrl.split(',')[1];
 
     try {
       const res = await processImage(base64Data, 'image/jpeg');
       if (res.type === 'unknown') {
-        setError(res.message || "Could not detect food or a receipt. Please try scanning again.");
+        setError(res.data.message || "Could not detect food or a receipt. Please try scanning again.");
         setSuccess(false);
       } else {
         if (auth.currentUser) {
@@ -227,16 +227,16 @@ export default function ScanReceipt() {
             if (res.type === 'receipt') {
               await addDoc(collection(db, 'receipts'), {
                 userId,
-                items: res.items || [],
+                items: res.data.items || [],
                 createdAt: now,
                 imageUrl: imageUrl || null
               });
             } else if (res.type === 'food') {
               await addDoc(collection(db, 'food_scans'), {
                 userId,
-                item: res.item || 'Unknown',
-                condition: res.condition || 'Unknown',
-                suggestions: res.suggestions || [],
+                item: res.data.item || 'Unknown',
+                condition: res.data.ripeness || 'Unknown',
+                suggestions: res.data.advice ? [res.data.advice.recipe, res.data.advice.preservation] : [],
                 createdAt: now,
                 imageUrl: imageUrl || null
               });

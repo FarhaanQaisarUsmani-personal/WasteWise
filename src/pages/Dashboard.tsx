@@ -6,7 +6,7 @@ import { handleFirestoreError, OperationType } from '../firestoreError';
 import { ArrowLeft, Receipt, ShoppingBag, TrendingUp, UploadCloud, Loader2, Sun, Moon, Apple, X, User as UserIcon } from 'lucide-react';
 import { motion } from 'motion/react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend } from 'recharts';
-import { processImage } from '../services/imageProcessor';
+import { processImage, ProcessResult } from '../services/testImageProcessor';
 import { uploadImageToStorage } from '../services/storageService';
 import { useTheme } from '../components/ThemeProvider';
 import Logo from '../components/Logo';
@@ -124,7 +124,7 @@ export default function Dashboard() {
 
       const res = await processImage(base64Data, file.type);
       if (res.type === 'unknown') {
-        alert(res.message || 'Could not detect food or a receipt.');
+        alert(res.data.message || 'Could not detect food or a receipt.');
       } else {
         if (auth.currentUser) {
           const userId = auth.currentUser.uid;
@@ -135,16 +135,16 @@ export default function Dashboard() {
             if (res.type === 'receipt') {
               await addDoc(collection(db, 'receipts'), {
                 userId,
-                items: res.items || [],
+                items: res.data.items || [],
                 createdAt: now,
                 imageUrl: imageUrl || null
               });
             } else if (res.type === 'food') {
               await addDoc(collection(db, 'food_scans'), {
                 userId,
-                item: res.item || 'Unknown',
-                condition: res.condition || 'Unknown',
-                suggestions: res.suggestions || [],
+                item: res.data.item || 'Unknown',
+                condition: res.data.ripeness || 'Unknown',
+                suggestions: res.data.advice ? [res.data.advice.recipe, res.data.advice.preservation] : [],
                 createdAt: now,
                 imageUrl: imageUrl || null
               });
