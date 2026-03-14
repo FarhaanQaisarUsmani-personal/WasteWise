@@ -1,0 +1,7 @@
+{
+  "name": "WasteWise",
+  "description": "A smart receipt scanning and waste management dashboard app.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

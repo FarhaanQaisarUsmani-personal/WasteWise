@@ -1,0 +1,96 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "A user of the WasteWise application.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "description": "The unique identifier of the user."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "The user's email address."
+        },
+        "displayName": {
+          "type": "string",
+          "description": "The user's display name."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the user was created."
+        }
+      },
+      "required": ["uid", "email", "createdAt"]
+    },
+    "Receipt": {
+      "title": "Receipt",
+      "description": "A scanned receipt containing purchased items.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user who scanned the receipt."
+        },
+        "storeName": {
+          "type": "string",
+          "description": "The name of the store."
+        },
+        "date": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The date of the receipt."
+        },
+        "total": {
+          "type": "number",
+          "description": "The total amount of the receipt."
+        },
+        "items": {
+          "type": "array",
+          "description": "The items on the receipt.",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "The name of the item."
+              },
+              "price": {
+                "type": "number",
+                "description": "The price of the item."
+              },
+              "category": {
+                "type": "string",
+                "description": "The category of the item (e.g., Groceries, Electronics, etc.)."
+              }
+            },
+            "required": ["name"]
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the receipt was scanned."
+        }
+      },
+      "required": ["userId", "createdAt", "items"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": {
+        "$ref": "#/entities/User"
+      },
+      "description": "Stores user profiles."
+    },
+    "receipts/{receiptId}": {
+      "schema": {
+        "$ref": "#/entities/Receipt"
+      },
+      "description": "Stores scanned receipts."
+    }
+  }
+}
