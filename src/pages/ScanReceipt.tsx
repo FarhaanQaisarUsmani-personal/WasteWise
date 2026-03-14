@@ -23,6 +23,7 @@ export default function ScanReceipt() {
   const isProcessingRef = useRef(false);
   const successRef = useRef(false);
   const streamRef = useRef<MediaStream | null>(null);
+  const errorRef = useRef(false);
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -42,7 +43,8 @@ export default function ScanReceipt() {
   useEffect(() => {
     successRef.current = success;
     streamRef.current = stream;
-  }, [success, stream]);
+    errorRef.current = Boolean(error);
+  }, [success, stream, error]);
 
   const startCamera = async () => {
     setError(null);
@@ -94,6 +96,10 @@ export default function ScanReceipt() {
 
     const attemptAutoScan = async () => {
       if (!isActive) return;
+
+      if (errorRef.current) {
+        return;
+      }
       
       if (!videoRef.current || !canvasRef.current || isProcessingRef.current || successRef.current || !streamRef.current) {
         timeoutId = setTimeout(attemptAutoScan, 1000);
@@ -121,6 +127,11 @@ export default function ScanReceipt() {
           const base64Data = dataUrl.split(',')[1];
 
           const res = await processImage(base64Data, 'image/jpeg');
+
+          if (isActive && res.type === 'unknown' && !successRef.current) {
+            setError('This is not food. Please try again with a food item.');
+            return;
+          }
           
           if (isActive && res.type !== 'unknown' && !successRef.current) {
             if (auth.currentUser) {
@@ -165,7 +176,7 @@ export default function ScanReceipt() {
         if (isActive) {
           isProcessingRef.current = false;
           setIsAutoAnalyzing(false);
-          if (!successRef.current) {
+          if (!successRef.current && !errorRef.current) {
             timeoutId = setTimeout(attemptAutoScan, 2500); // Wait 2.5s before next attempt
           }
         }
@@ -217,7 +228,7 @@ export default function ScanReceipt() {
     try {
       const res = await processImage(base64Data, 'image/jpeg');
       if (res.type === 'unknown') {
-        setError(res.message || "Could not detect food or a receipt. Please try scanning again.");
+        setError('This is not food. Please try again with a food item.');
         setSuccess(false);
       } else {
         if (auth.currentUser) {
