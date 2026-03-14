@@ -46,6 +46,10 @@
           "type": "string",
           "format": "date-time",
           "description": "The timestamp when the receipt was scanned."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "The URL of the uploaded scan image."
         }
       },
       "required": ["userId", "createdAt", "items"]
@@ -78,6 +82,10 @@
           "type": "string",
           "format": "date-time",
           "description": "The timestamp when the food was scanned."
+        },
+        "imageUrl": {
+          "type": "string",
+          "description": "The URL of the uploaded scan image."
         }
       },
       "required": ["userId", "createdAt", "item", "condition", "suggestions"]

@@ -3,9 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { collection, query, where, onSnapshot, orderBy, addDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../firestoreError';
-import { ArrowLeft, Receipt, ShoppingBag, TrendingUp, UploadCloud, Loader2, Sun, Moon, Apple } from 'lucide-react';
+import { ArrowLeft, Receipt, ShoppingBag, TrendingUp, UploadCloud, Loader2, Sun, Moon, Apple, X } from 'lucide-react';
 import { motion } from 'motion/react';
 import { processImage } from '../services/imageProcessor';
+import { uploadImageToStorage } from '../services/storageService';
 import { useTheme } from '../components/ThemeProvider';
 import Logo from '../components/Logo';
 
@@ -14,6 +15,7 @@ interface ReceiptData {
   type: 'receipt';
   items: string[];
   createdAt: string;
+  imageUrl?: string;
 }
 
 interface FoodScanData {
@@ -23,6 +25,7 @@ interface FoodScanData {
   condition: string;
   suggestions: string[];
   createdAt: string;
+  imageUrl?: string;
 }
 
 type ActivityData = ReceiptData | FoodScanData;
@@ -33,6 +36,7 @@ export default function Dashboard() {
   const [activities, setActivities] = useState<ActivityData[]>([]);
   const [loading, setLoading] = useState(true);
   const [isUploading, setIsUploading] = useState(false);
+  const [selectedActivity, setSelectedActivity] = useState<ActivityData | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -107,11 +111,14 @@ export default function Dashboard() {
           const userId = auth.currentUser.uid;
           const now = new Date().toISOString();
           try {
+            const imageUrl = await uploadImageToStorage(base64Data, userId);
+            
             if (res.type === 'receipt') {
               await addDoc(collection(db, 'receipts'), {
                 userId,
                 items: res.items || [],
-                createdAt: now
+                createdAt: now,
+                imageUrl: imageUrl || null
               });
             } else if (res.type === 'food') {
               await addDoc(collection(db, 'food_scans'), {
@@ -119,7 +126,8 @@ export default function Dashboard() {
                 item: res.item || 'Unknown',
                 condition: res.condition || 'Unknown',
                 suggestions: res.suggestions || [],
-                createdAt: now
+                createdAt: now,
+                imageUrl: imageUrl || null
               });
             }
           } catch (saveErr) {
@@ -249,7 +257,8 @@ export default function Dashboard() {
                 key={activity.id}
                 initial={{ opacity: 0, y: 10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white dark:bg-zinc-900 p-6 rounded-3xl shadow-sm border border-zinc-100 dark:border-zinc-800 hover:shadow-md transition-all flex flex-col"
+                onClick={() => setSelectedActivity(activity)}
+                className="bg-white dark:bg-zinc-900 p-6 rounded-3xl shadow-sm border border-zinc-100 dark:border-zinc-800 hover:shadow-md transition-all flex flex-col cursor-pointer"
               >
                 <div className="flex justify-between items-start mb-4">
                   <div>
@@ -261,6 +270,11 @@ export default function Dashboard() {
                       {new Date(activity.createdAt).toLocaleDateString()}
                     </p>
                   </div>
+                  {activity.imageUrl && (
+                    <div className="w-12 h-12 rounded-lg overflow-hidden border border-zinc-200 dark:border-zinc-700 shrink-0">
+                      <img src={activity.imageUrl} alt="Scan thumbnail" className="w-full h-full object-cover" referrerPolicy="no-referrer" />
+                    </div>
+                  )}
                 </div>
                 
                 <div className="flex-1">
@@ -299,6 +313,103 @@ export default function Dashboard() {
           </div>
         )}
       </div>
+
+      {/* Activity Details Modal */}
+      {selectedActivity && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+          <motion.div 
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="bg-white dark:bg-zinc-900 rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col border border-zinc-200 dark:border-zinc-800"
+          >
+            <div className="flex items-center justify-between p-6 border-b border-zinc-100 dark:border-zinc-800">
+              <h2 className="text-2xl font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                {selectedActivity.type === 'receipt' ? <Receipt size={24} className="text-emerald-500" /> : <Apple size={24} className="text-blue-500" />}
+                {selectedActivity.type === 'receipt' ? 'Receipt Details' : 'Food Scan Details'}
+              </h2>
+              <button 
+                onClick={() => setSelectedActivity(null)}
+                className="p-2 bg-zinc-100 dark:bg-zinc-800 rounded-full hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors"
+              >
+                <X size={20} className="text-zinc-700 dark:text-zinc-300" />
+              </button>
+            </div>
+            
+            <div className="p-6 overflow-y-auto flex-1">
+              <div className="flex flex-col md:flex-row gap-8">
+                {/* Image Section */}
+                <div className="w-full md:w-1/2">
+                  {selectedActivity.imageUrl ? (
+                    <div className="rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-950 aspect-[3/4] relative">
+                      <img 
+                        src={selectedActivity.imageUrl} 
+                        alt="Original scan" 
+                        className="w-full h-full object-contain absolute inset-0"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  ) : (
+                    <div className="rounded-2xl border border-zinc-200 dark:border-zinc-800 bg-zinc-100 dark:bg-zinc-800 aspect-[3/4] flex flex-col items-center justify-center text-zinc-400">
+                      <Receipt size={48} className="mb-4 opacity-50" />
+                      <p>No image saved</p>
+                    </div>
+                  )}
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-4 text-center">
+                    Scanned on {new Date(selectedActivity.createdAt).toLocaleString()}
+                  </p>
+                </div>
+
+                {/* Details Section */}
+                <div className="w-full md:w-1/2">
+                  {selectedActivity.type === 'receipt' ? (
+                    <div>
+                      <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4">
+                        Found {selectedActivity.items?.length || 0} Items
+                      </h3>
+                      <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-4 border border-zinc-200 dark:border-zinc-700 max-h-[60vh] overflow-y-auto">
+                        <ul className="space-y-3">
+                          {selectedActivity.items?.map((item, idx) => (
+                            <li key={idx} className="flex items-start gap-3 text-zinc-700 dark:text-zinc-300">
+                              <div className="w-2 h-2 rounded-full bg-emerald-500 mt-2 shrink-0" />
+                              <span className="leading-relaxed">{item}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-6">
+                      <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-5 border border-zinc-200 dark:border-zinc-700">
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 uppercase tracking-wider font-semibold mb-1">Detected Item</p>
+                        <p className="text-xl text-zinc-900 dark:text-zinc-100 capitalize font-bold">{selectedActivity.item}</p>
+                      </div>
+                      
+                      <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-5 border border-zinc-200 dark:border-zinc-700">
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 uppercase tracking-wider font-semibold mb-1">Condition</p>
+                        <p className="text-lg text-zinc-900 dark:text-zinc-100 capitalize font-medium">{selectedActivity.condition}</p>
+                      </div>
+
+                      {selectedActivity.suggestions && selectedActivity.suggestions.length > 0 && (
+                        <div>
+                          <h4 className="font-semibold text-zinc-900 dark:text-white mb-3">Usage Suggestions</h4>
+                          <ul className="space-y-3">
+                            {selectedActivity.suggestions.map((sug, idx) => (
+                              <li key={idx} className="flex items-start gap-3 text-sm text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800/30 p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                                <span className="leading-relaxed">{sug}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </motion.div>
+        </div>
+      )}
     </div>
   );
 }

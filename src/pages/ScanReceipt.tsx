@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { motion } from 'motion/react';
 import { ArrowLeft, Camera, CheckCircle2, Loader2, RefreshCw, AlertCircle, Scan } from 'lucide-react';
 import { processImage, ProcessResult } from '../services/imageProcessor';
+import { uploadImageToStorage } from '../services/storageService';
 import { db, auth } from '../firebase';
 import { collection, addDoc } from 'firebase/firestore';
 
@@ -100,11 +101,14 @@ export default function ScanReceipt() {
               const userId = auth.currentUser.uid;
               const now = new Date().toISOString();
               try {
+                const imageUrl = await uploadImageToStorage(base64Data, userId);
+                
                 if (res.type === 'receipt') {
                   await addDoc(collection(db, 'receipts'), {
                     userId,
                     items: res.items || [],
-                    createdAt: now
+                    createdAt: now,
+                    imageUrl: imageUrl || null
                   });
                 } else if (res.type === 'food') {
                   await addDoc(collection(db, 'food_scans'), {
@@ -112,7 +116,8 @@ export default function ScanReceipt() {
                     item: res.item || 'Unknown',
                     condition: res.condition || 'Unknown',
                     suggestions: res.suggestions || [],
-                    createdAt: now
+                    createdAt: now,
+                    imageUrl: imageUrl || null
                   });
                 }
               } catch (saveErr) {
@@ -185,11 +190,14 @@ export default function ScanReceipt() {
           const userId = auth.currentUser.uid;
           const now = new Date().toISOString();
           try {
+            const imageUrl = await uploadImageToStorage(base64Data, userId);
+            
             if (res.type === 'receipt') {
               await addDoc(collection(db, 'receipts'), {
                 userId,
                 items: res.items || [],
-                createdAt: now
+                createdAt: now,
+                imageUrl: imageUrl || null
               });
             } else if (res.type === 'food') {
               await addDoc(collection(db, 'food_scans'), {
@@ -197,7 +205,8 @@ export default function ScanReceipt() {
                 item: res.item || 'Unknown',
                 condition: res.condition || 'Unknown',
                 suggestions: res.suggestions || [],
-                createdAt: now
+                createdAt: now,
+                imageUrl: imageUrl || null
               });
             }
           } catch (saveErr) {

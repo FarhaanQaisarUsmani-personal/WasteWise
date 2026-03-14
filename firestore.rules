@@ -82,7 +82,8 @@ service cloud.firestore {
       return hasRequiredFields(['userId', 'createdAt', 'items']) &&
              data.userId is string &&
              data.createdAt is string && isValidDateString(data.createdAt) &&
-             data.items is list && data.items.size() <= 100;
+             data.items is list && data.items.size() <= 100 &&
+             (!('imageUrl' in data) || data.imageUrl == null || (data.imageUrl is string && data.imageUrl.size() < 2000));
     }
 
     function isValidFoodScan(data) {
@@ -91,7 +92,8 @@ service cloud.firestore {
              data.createdAt is string && isValidDateString(data.createdAt) &&
              data.item is string && data.item.size() < 100 &&
              data.condition is string && data.condition.size() < 100 &&
-             data.suggestions is list && data.suggestions.size() <= 20;
+             data.suggestions is list && data.suggestions.size() <= 20 &&
+             (!('imageUrl' in data) || data.imageUrl == null || (data.imageUrl is string && data.imageUrl.size() < 2000));
     }
 
     match /users/{userId} {
