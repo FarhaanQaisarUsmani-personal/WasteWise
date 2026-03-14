@@ -4,9 +4,9 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "concurrently -k -n web,api \"npm:dev:web\" \"npm:dev:api\"",
+    "dev": "concurrently -n web,api \"npm:dev:web\" \"npm:dev:api\"",
     "dev:web": "vite --port=3000 --host=0.0.0.0",
-    "dev:api": ".venv/bin/python -m uvicorn backend.ml_api.app:app --host 0.0.0.0 --port 8000",
+    "dev:api": "sh -c 'if lsof -iTCP:8000 -sTCP:LISTEN >/dev/null 2>&1; then echo \"API already running on port 8000, reusing existing process.\"; exit 0; fi; .venv/bin/python -m uvicorn backend.ml_api.app:app --host 0.0.0.0 --port 8000'",
     "api": "npm run dev:api",
     "build": "vite build",
     "preview": "vite preview",
