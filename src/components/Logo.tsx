@@ -1,4 +1,4 @@
-import React from 'react';
+import wiseLogo from '../assets/Wise.png';
 
 interface LogoProps {
   className?: string;
@@ -8,12 +8,11 @@ interface LogoProps {
 export default function Logo({ className = '', size = 48 }: LogoProps) {
   return (
     <img 
-      src="/Wise.png" 
+      src={wiseLogo}
       alt="WISE Logo" 
       width={size} 
       height={size} 
-      className={`object-contain ${className}`} 
-      referrerPolicy="no-referrer"
+      className={className} 
     />
   );
 }

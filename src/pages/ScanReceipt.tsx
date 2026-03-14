@@ -18,6 +18,7 @@ export default function ScanReceipt() {
   const [error, setError] = useState<string | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [displayName, setDisplayName] = useState('');
+  const [capturedPreview, setCapturedPreview] = useState<string | null>(null);
 
   const isProcessingRef = useRef(false);
   const successRef = useRef(false);
@@ -151,6 +152,7 @@ export default function ScanReceipt() {
             }
 
             setResult(res);
+            setCapturedPreview(dataUrl);
             setSuccess(true);
             stopCamera();
             return; // Stop looping
@@ -247,6 +249,7 @@ export default function ScanReceipt() {
         }
 
         setResult(res);
+        setCapturedPreview(dataUrl);
         setSuccess(true);
         stopCamera();
       }
@@ -262,6 +265,8 @@ export default function ScanReceipt() {
   const resetScanner = () => {
     setSuccess(false);
     setResult(null);
+    setCapturedPreview(null);
+    setError(null);
     startCamera();
   };
 
@@ -300,48 +305,55 @@ export default function ScanReceipt() {
         </header>
 
         <div className="flex-1 flex flex-col items-center justify-center relative bg-black rounded-3xl overflow-hidden shadow-2xl border border-zinc-200 dark:border-zinc-800">
-          {!success ? (
+          {error ? (
+            <div className="p-8 text-center max-w-md bg-white dark:bg-zinc-900 w-full h-full flex flex-col items-center justify-center">
+              <div className="bg-red-500/20 p-4 rounded-full inline-block mb-4">
+                <AlertCircle size={48} className="text-red-500 dark:text-red-400" />
+              </div>
+              <h3 className="text-xl font-semibold mb-2 text-red-600 dark:text-red-400">Analysis Failed</h3>
+              <p className="text-zinc-600 dark:text-zinc-400 mb-6">{error}</p>
+              <div className="flex flex-col gap-3 w-full max-w-xs">
+                <button 
+                  onClick={resetScanner}
+                  className="w-full px-6 py-3 bg-zinc-900 dark:bg-zinc-800 text-white rounded-xl hover:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors"
+                >
+                  Try Again
+                </button>
+                <button 
+                  onClick={() => {
+                    stopCamera();
+                    navigate('/dashboard');
+                  }}
+                  className="w-full px-6 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
+                >
+                  Upload from Dashboard
+                </button>
+              </div>
+            </div>
+          ) : (
             <>
-              {error ? (
-                <div className="p-8 text-center max-w-md bg-white dark:bg-zinc-900 w-full h-full flex flex-col items-center justify-center">
-                  <div className="bg-red-500/20 p-4 rounded-full inline-block mb-4">
-                    <AlertCircle size={48} className="text-red-500 dark:text-red-400" />
-                  </div>
-                  <h3 className="text-xl font-semibold mb-2 text-red-600 dark:text-red-400">Analysis Failed</h3>
-                  <p className="text-zinc-600 dark:text-zinc-400 mb-6">{error}</p>
-                  <div className="flex flex-col gap-3 w-full max-w-xs">
-                    <button 
-                      onClick={resetScanner}
-                      className="w-full px-6 py-3 bg-zinc-900 dark:bg-zinc-800 text-white rounded-xl hover:bg-zinc-800 dark:hover:bg-zinc-700 transition-colors"
-                    >
-                      Try Again
-                    </button>
-                    <button 
-                      onClick={() => {
-                        stopCamera();
-                        navigate('/dashboard');
-                      }}
-                      className="w-full px-6 py-3 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-700 text-zinc-900 dark:text-white rounded-xl hover:bg-zinc-50 dark:hover:bg-zinc-800 transition-colors"
-                    >
-                      Upload from Dashboard
-                    </button>
-                  </div>
-                </div>
+              {capturedPreview && success ? (
+                <img
+                  src={capturedPreview}
+                  alt="Captured scan"
+                  className="w-full h-full object-cover"
+                />
               ) : (
+                <video 
+                  ref={videoRef} 
+                  autoPlay 
+                  playsInline 
+                  muted
+                  onLoadedMetadata={() => {
+                    videoRef.current?.play().catch(console.error);
+                  }}
+                  className={`w-full h-full object-cover ${isManualProcessing ? 'opacity-50 blur-sm' : ''}`}
+                />
+              )}
+              <canvas ref={canvasRef} className="hidden" />
+              
+              {!success && (
                 <>
-                  <video 
-                    ref={videoRef} 
-                    autoPlay 
-                    playsInline 
-                    muted
-                    onLoadedMetadata={() => {
-                      videoRef.current?.play().catch(console.error);
-                    }}
-                    className={`w-full h-full object-cover ${isManualProcessing ? 'opacity-50 blur-sm' : ''}`}
-                  />
-                  <canvas ref={canvasRef} className="hidden" />
-                  
-                  {/* Auto-analyzing badge */}
                   <div className="absolute top-6 left-0 right-0 flex justify-center pointer-events-none z-10">
                     <div className="bg-black/60 backdrop-blur-md text-white px-4 py-2 rounded-full flex items-center gap-2 text-sm font-medium border border-white/10 shadow-xl">
                       {isAutoAnalyzing ? (
@@ -352,16 +364,14 @@ export default function ScanReceipt() {
                       ) : (
                         <>
                           <Scan size={16} className="text-emerald-400" />
-                          <span>Point at food or receipt</span>
+                          <span>Point at a food item</span>
                         </>
                       )}
                     </div>
                   </div>
 
-                  {/* Scanner overlay guides */}
                   <div className="absolute inset-0 pointer-events-none border-[40px] border-black/40">
                     <div className="w-full h-full border-2 border-emerald-500/50 rounded-xl relative overflow-hidden">
-                      {/* Laser animation */}
                       <motion.div 
                         animate={{ top: ['0%', '100%', '0%'] }}
                         transition={{ duration: 3, repeat: Infinity, ease: 'linear' }}
@@ -396,92 +406,126 @@ export default function ScanReceipt() {
                         <Camera size={32} className="text-white dark:text-zinc-900" />
                       )}
                     </button>
-                    <div className="w-12 h-12" /> {/* Spacer for centering */}
+                    <div className="w-12 h-12" />
                   </div>
-
-                  {isManualProcessing && (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-30">
-                      <Loader2 size={48} className="animate-spin text-emerald-500 mb-4" />
-                      <p className="text-lg font-medium text-emerald-400">Analyzing Image...</p>
-                    </div>
-                  )}
                 </>
               )}
-            </>
-          ) : (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="text-center py-12 px-6 bg-white dark:bg-zinc-900 w-full h-full flex flex-col items-center justify-center overflow-y-auto"
-            >
-              <div className="flex justify-center mb-6">
-                <div className="bg-emerald-100 dark:bg-emerald-500/20 p-6 rounded-full">
-                  <CheckCircle2 size={80} className="text-emerald-600 dark:text-emerald-500" />
-                </div>
-              </div>
-              <h2 className="text-3xl font-bold text-zinc-900 dark:text-white mb-4">
-                {result?.type === 'receipt' ? 'Receipt Processed!' : 'Food Detected!'}
-              </h2>
-              
-              {result?.type === 'receipt' && (
-                <div className="mb-8 w-full max-w-md text-left">
-                  <p className="text-zinc-500 dark:text-zinc-400 mb-4 text-center">
-                    Found {result.items?.length || 0} food items on your receipt.
-                  </p>
-                  <div className="bg-zinc-50 dark:bg-zinc-800 rounded-xl p-4 max-h-48 overflow-y-auto border border-zinc-200 dark:border-zinc-700">
-                    <ul className="space-y-2">
-                      {result.items?.map((item, idx) => (
-                        <li key={idx} className="flex items-center gap-2 text-zinc-700 dark:text-zinc-300">
-                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-500" />
-                          {item}
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
+
+              {isManualProcessing && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/60 backdrop-blur-sm z-30">
+                  <Loader2 size={48} className="animate-spin text-emerald-500 mb-4" />
+                  <p className="text-lg font-medium text-emerald-400">Analyzing Image...</p>
                 </div>
               )}
 
-              {result?.type === 'food' && (
-                <div className="mb-8 w-full max-w-md text-left">
-                  <div className="bg-zinc-50 dark:bg-zinc-800 rounded-xl p-6 border border-zinc-200 dark:border-zinc-700">
-                    <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2 capitalize">{result.item}</h3>
-                    <p className="text-zinc-600 dark:text-zinc-400 mb-4">
-                      Condition: <span className="font-semibold text-zinc-900 dark:text-zinc-200 capitalize">{result.condition}</span>
-                    </p>
-                    
-                    {result.suggestions && result.suggestions.length > 0 && (
-                      <div>
-                        <h4 className="font-semibold text-zinc-900 dark:text-white mb-2">Usage Suggestions:</h4>
-                        <ul className="space-y-2">
-                          {result.suggestions.map((sug, idx) => (
-                            <li key={idx} className="flex items-start gap-2 text-sm text-zinc-700 dark:text-zinc-300">
-                              <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
-                              {sug}
-                            </li>
-                          ))}
-                        </ul>
+              {success && result && (
+                <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/65 backdrop-blur-md p-4">
+                  <motion.div
+                    initial={{ opacity: 0, scale: 0.92, y: 12 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    className="w-full max-w-lg rounded-[2rem] border border-white/10 bg-white/95 dark:bg-zinc-900/95 shadow-2xl overflow-hidden"
+                  >
+                    <div className="p-6 sm:p-8">
+                      <div className="flex justify-center mb-5">
+                        <div className="bg-emerald-100 dark:bg-emerald-500/20 p-5 rounded-full">
+                          <CheckCircle2 size={64} className="text-emerald-600 dark:text-emerald-400" />
+                        </div>
                       </div>
-                    )}
-                  </div>
+                      <h2 className="text-3xl font-bold text-zinc-900 dark:text-white text-center mb-2">
+                        Analysis Complete
+                      </h2>
+                      <p className="text-center text-zinc-500 dark:text-zinc-400 mb-6">
+                        {result.type === 'food'
+                          ? 'Your trained model classified the captured item.'
+                          : result.message || 'The scan is complete.'}
+                      </p>
+
+                      {result.type === 'food' && (
+                        <div className="space-y-4 mb-6">
+                          <div className="rounded-2xl bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 p-5">
+                            <div className="flex items-start justify-between gap-4 mb-4">
+                              <div>
+                                <p className="text-xs uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400 mb-2">Detected Item</p>
+                                <h3 className="text-2xl font-bold text-zinc-900 dark:text-white capitalize">{result.item}</h3>
+                              </div>
+                              {typeof result.confidence === 'number' && (
+                                <div className="rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 px-3 py-1.5 text-sm font-semibold">
+                                  {Math.round(result.confidence * 100)}% confidence
+                                </div>
+                              )}
+                            </div>
+                            <p className="text-zinc-600 dark:text-zinc-300">
+                              Condition: <span className="font-semibold text-zinc-900 dark:text-white capitalize">{result.condition}</span>
+                              {typeof result.conditionConfidence === 'number' && (
+                                <span className="text-zinc-500 dark:text-zinc-400"> ({Math.round(result.conditionConfidence * 100)}%)</span>
+                              )}
+                            </p>
+                          </div>
+
+                          {result.topPredictions && result.topPredictions.length > 0 && (
+                            <div className="rounded-2xl bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 p-5">
+                              <h4 className="font-semibold text-zinc-900 dark:text-white mb-3">Top Predictions</h4>
+                              <div className="space-y-3">
+                                {result.topPredictions.map((prediction) => (
+                                  <div key={prediction.label}>
+                                    <div className="flex items-center justify-between text-sm mb-1.5">
+                                      <span className="text-zinc-700 dark:text-zinc-200 capitalize">{prediction.label}</span>
+                                      <span className="text-zinc-500 dark:text-zinc-400">{Math.round(prediction.confidence * 100)}%</span>
+                                    </div>
+                                    <div className="h-2 rounded-full bg-zinc-200 dark:bg-zinc-700 overflow-hidden">
+                                      <div
+                                        className="h-full rounded-full bg-emerald-500"
+                                        style={{ width: `${Math.max(8, prediction.confidence * 100)}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {result.suggestions && result.suggestions.length > 0 && (
+                            <div className="rounded-2xl bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 p-5">
+                              <h4 className="font-semibold text-zinc-900 dark:text-white mb-3">Use It Now</h4>
+                              <ul className="space-y-2.5">
+                                {result.suggestions.map((suggestion, index) => (
+                                  <li key={index} className="flex items-start gap-3 text-sm text-zinc-700 dark:text-zinc-300">
+                                    <div className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-500" />
+                                    <span>{suggestion}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {result.type === 'unknown' && (
+                        <div className="mb-6 rounded-2xl bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 p-5 text-center text-zinc-600 dark:text-zinc-300">
+                          {result.message || 'The model could not confidently classify this image.'}
+                        </div>
+                      )}
+
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <button
+                          onClick={resetScanner}
+                          className="flex-1 px-6 py-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-xl font-medium hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <RefreshCw size={20} />
+                          Scan Another
+                        </button>
+                        <button
+                          onClick={() => navigate('/dashboard')}
+                          className="flex-1 px-6 py-4 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 dark:hover:bg-emerald-500 transition-colors"
+                        >
+                          View Dashboard
+                        </button>
+                      </div>
+                    </div>
+                  </motion.div>
                 </div>
               )}
-
-              <div className="flex flex-col sm:flex-row gap-4 justify-center w-full max-w-sm">
-                <button
-                  onClick={resetScanner}
-                  className="flex-1 px-6 py-4 bg-zinc-100 dark:bg-zinc-800 text-zinc-900 dark:text-white rounded-xl font-medium hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors flex items-center justify-center gap-2"
-                >
-                  <RefreshCw size={20} />
-                  Scan Another
-                </button>
-                <button
-                  onClick={() => navigate('/dashboard')}
-                  className="flex-1 px-6 py-4 bg-emerald-600 text-white rounded-xl font-medium hover:bg-emerald-700 dark:hover:bg-emerald-500 transition-colors"
-                >
-                  View Dashboard
-                </button>
-              </div>
-            </motion.div>
+            </>
           )}
         </div>
       </div>

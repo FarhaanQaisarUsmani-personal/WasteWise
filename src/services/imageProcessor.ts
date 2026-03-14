@@ -1,8 +1,3 @@
-import { GoogleGenAI, Type } from '@google/genai';
-import { auth } from '../firebase';
-
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
-
 export interface ProcessResult {
   type: 'receipt' | 'food' | 'unknown';
   items?: string[];
@@ -10,108 +5,56 @@ export interface ProcessResult {
   condition?: string;
   suggestions?: string[];
   message?: string;
+  confidence?: number;
+  conditionConfidence?: number;
+  topPredictions?: Array<{
+    label: string;
+    confidence: number;
+  }>;
 }
 
 export async function processImage(base64Data: string, mimeType: string): Promise<ProcessResult> {
-  if (!auth.currentUser) throw new Error("User not authenticated");
+  let response: Response;
 
-  const prompt = `You are the image analysis AI for the WasteWise application. Your job is to analyze images captured from a phone camera and determine whether the image contains a grocery receipt or food.
-Always follow this process:
-Step 1: Classify the Image
-Analyze the image and determine which category it belongs to:
-Receipt
-A printed or digital grocery receipt showing purchased items.
-Contains store name, item list, prices, totals, or transaction details.
-Food Item
-A fruit, vegetable, packaged food, cooked food, or ingredient.
-The image may show fresh food, spoiled food, or food in a kitchen environment.
-Unknown
-If the image does not clearly show a receipt or food item.
-Return the classification first.
-
-Step 2: If the Image is a Receipt
-Extract all identifiable food-related items listed on the receipt.
-Rules:
-Ignore prices, totals, taxes, and store information.
-Focus only on food products.
-Clean the item names (remove codes, numbers, abbreviations if possible).
-If multiple quantities appear, list the item once.
-Return:
-A structured list of detected food items.
-
-Step 3: If the Image is Food
-Identify the food item in the image.
-If possible:
-Name the food
-Detect if it appears fresh, ripe, or overripe/spoiling
-If the food appears close to spoiling:
-Suggest ways the user can use it instead of wasting it.
-
-Step 4: If the Image is Unknown
-Return:
-type: unknown
-message: Could not detect food or a receipt. Please try scanning again.
-
-Behavioral Rules
-Prioritize accuracy over guessing.
-If unsure between receipt and food, choose unknown.
-Do not invent items not visible in the image.
-Always return structured JSON-style responses.`;
-
-  const response = await ai.models.generateContent({
-    model: 'gemini-3-flash-preview',
-    contents: {
-      parts: [
-        {
-          inlineData: {
-            mimeType: mimeType,
-            data: base64Data
-          }
-        },
-        {
-          text: prompt
-        }
-      ]
-    },
-    config: {
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          type: { type: Type.STRING, description: "'receipt', 'food', or 'unknown'" },
-          items: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING },
-            description: "List of food items if type is receipt"
-          },
-          item: { type: Type.STRING, description: "Name of the food if type is food" },
-          condition: { type: Type.STRING, description: "Condition of the food if type is food" },
-          suggestions: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING },
-            description: "Suggestions for using the food if it is spoiling"
-          },
-          message: { type: Type.STRING, description: "Error message if type is unknown" }
-        },
-        required: ["type"]
-      }
-    }
-  });
-
-  let jsonStr = response.text?.trim() || "{}";
-  if (jsonStr.startsWith('```json')) {
-    jsonStr = jsonStr.replace(/```json\n?/, '').replace(/```\n?$/, '').trim();
-  } else if (jsonStr.startsWith('```')) {
-    jsonStr = jsonStr.replace(/```\n?/, '').replace(/```\n?$/, '').trim();
-  }
-  
-  let parsedData: ProcessResult;
   try {
-    parsedData = JSON.parse(jsonStr) as ProcessResult;
-  } catch (e) {
-    console.error("Failed to parse JSON from Gemini:", jsonStr);
-    parsedData = { type: 'unknown', message: 'Failed to process image format.' };
+    response = await fetch('/api/analyze', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        image: base64Data,
+        mimeType,
+      }),
+    });
+  } catch (error) {
+    console.error('Analyzer request failed:', error);
+    throw new Error('The local model API is not running. Start the app with npm run dev and scan again.');
   }
 
-  return parsedData;
+  let responseData: ProcessResult | { detail?: string } = { type: 'unknown' };
+  try {
+    responseData = await response.json();
+  } catch (error) {
+    console.error('Failed to parse analyzer response:', error);
+  }
+
+  if (!response.ok) {
+    const detail = 'detail' in responseData ? responseData.detail : undefined;
+    throw new Error(detail || 'The local analyzer could not process the image.');
+  }
+
+  const parsedResult = responseData as ProcessResult;
+
+  return {
+    type: parsedResult.type ?? 'unknown',
+    items: parsedResult.items,
+    item: parsedResult.item,
+    condition: parsedResult.condition,
+    suggestions: parsedResult.suggestions,
+    message: parsedResult.message,
+    confidence: parsedResult.confidence,
+    conditionConfidence: parsedResult.conditionConfidence,
+    topPredictions: parsedResult.topPredictions,
+  };
 }
