@@ -16,11 +16,17 @@ service cloud.firestore {
     // Document ID: auto-generated
     // Fields:
     //   - userId: string (required, immutable)
-    //   - storeName: string (optional)
-    //   - date: timestamp (optional)
-    //   - total: number (optional)
-    //   - items: list of objects (required)
-    //   - createdAt: timestamp (required, immutable)
+    //   - items: list of strings (required)
+    //   - createdAt: string (required, immutable)
+    //
+    // Collection: food_scans
+    // Document ID: auto-generated
+    // Fields:
+    //   - userId: string (required, immutable)
+    //   - item: string (required)
+    //   - condition: string (required)
+    //   - suggestions: list of strings (required)
+    //   - createdAt: string (required, immutable)
     // ===============================================================
 
     // Helper Functions
@@ -60,22 +66,32 @@ service cloud.firestore {
       return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
     }
 
+    function isValidDateString(dateStr) {
+      return dateStr is string && dateStr.matches("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}.*Z?$");
+    }
+
     function isValidUser(data) {
       return hasRequiredFields(['uid', 'email', 'createdAt']) &&
              data.uid is string &&
              data.email is string && isValidEmail(data.email) &&
-             data.createdAt is timestamp &&
+             data.createdAt is string && isValidDateString(data.createdAt) &&
              (!('displayName' in data) || (data.displayName is string && data.displayName.size() < 100));
     }
 
     function isValidReceipt(data) {
       return hasRequiredFields(['userId', 'createdAt', 'items']) &&
              data.userId is string &&
-             data.createdAt is timestamp &&
-             data.items is list && data.items.size() <= 100 &&
-             (!('storeName' in data) || (data.storeName is string && data.storeName.size() < 100)) &&
-             (!('date' in data) || data.date is timestamp) &&
-             (!('total' in data) || data.total is number);
+             data.createdAt is string && isValidDateString(data.createdAt) &&
+             data.items is list && data.items.size() <= 100;
+    }
+
+    function isValidFoodScan(data) {
+      return hasRequiredFields(['userId', 'createdAt', 'item', 'condition', 'suggestions']) &&
+             data.userId is string &&
+             data.createdAt is string && isValidDateString(data.createdAt) &&
+             data.item is string && data.item.size() < 100 &&
+             data.condition is string && data.condition.size() < 100 &&
+             data.suggestions is list && data.suggestions.size() <= 20;
     }
 
     match /users/{userId} {
@@ -89,6 +105,13 @@ service cloud.firestore {
       allow read: if isDocOwner();
       allow create: if isAuthenticated() && isValidReceipt(request.resource.data) && userIdUnchanged();
       allow update: if isDocOwner() && isValidReceipt(request.resource.data) && userIdNotModified() && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isDocOwner();
+    }
+
+    match /food_scans/{foodScanId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidFoodScan(request.resource.data) && userIdUnchanged();
+      allow update: if isDocOwner() && isValidFoodScan(request.resource.data) && userIdNotModified() && request.resource.data.createdAt == resource.data.createdAt;
       allow delete: if isDocOwner();
     }
   }

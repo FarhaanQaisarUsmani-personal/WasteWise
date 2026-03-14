@@ -1,10 +1,10 @@
 import React from 'react';
 import { motion } from 'motion/react';
-import { Leaf } from 'lucide-react';
+import Logo from '../components/Logo';
 
 export default function SplashScreen() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-emerald-900 text-emerald-50">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#6b8059] text-[#d4d9c6]">
       <motion.div
         initial={{ scale: 0.5, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
@@ -16,7 +16,7 @@ export default function SplashScreen() {
           transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
           className="mb-6"
         >
-          <Leaf size={64} className="text-emerald-400" />
+          <Logo size={80} />
         </motion.div>
         <motion.h1
           initial={{ y: 20, opacity: 0 }}
@@ -30,7 +30,7 @@ export default function SplashScreen() {
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
           transition={{ delay: 0.6, duration: 0.6 }}
-          className="mt-4 text-emerald-200/80 text-lg font-medium tracking-wide uppercase"
+          className="mt-4 opacity-80 text-lg font-medium tracking-wide uppercase"
         >
           Track. Reduce. Sustain.
         </motion.p>

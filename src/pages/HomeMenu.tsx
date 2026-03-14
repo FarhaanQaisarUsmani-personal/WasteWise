@@ -5,6 +5,7 @@ import { LayoutDashboard, ScanLine, LogOut, Sun, Moon } from 'lucide-react';
 import { auth } from '../firebase';
 import { signOut } from 'firebase/auth';
 import { useTheme } from '../components/ThemeProvider';
+import Logo from '../components/Logo';
 
 export default function HomeMenu() {
   const navigate = useNavigate();
@@ -36,9 +37,14 @@ export default function HomeMenu() {
 
       <div className="z-10 w-full max-w-4xl">
         <div className="flex justify-between items-center mb-12">
-          <h1 className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight">
-            WasteWise
-          </h1>
+          <div className="flex items-center gap-3">
+            <div className="w-12 h-12 bg-[#6b8059] rounded-xl flex items-center justify-center text-[#d4d9c6] shadow-md">
+              <Logo size={32} />
+            </div>
+            <h1 className="text-4xl font-bold text-zinc-900 dark:text-white tracking-tight">
+              WasteWise
+            </h1>
+          </div>
           <div className="flex items-center gap-2">
             <button
               onClick={toggleTheme}
@@ -92,9 +98,9 @@ export default function HomeMenu() {
                 <ScanLine size={32} className="text-emerald-400" />
               </div>
               <div>
-                <h2 className="text-3xl font-bold mb-3">Scan Receipt</h2>
+                <h2 className="text-3xl font-bold mb-3">Scan Receipt or Food</h2>
                 <p className="text-zinc-400 text-lg leading-relaxed">
-                  Use your device camera to instantly scan and categorize a receipt.
+                  Use your device camera to instantly scan a receipt or food item.
                 </p>
               </div>
             </div>

@@ -28,46 +28,18 @@
     },
     "Receipt": {
       "title": "Receipt",
-      "description": "A scanned receipt containing purchased items.",
+      "description": "A scanned receipt containing purchased food items.",
       "type": "object",
       "properties": {
         "userId": {
           "type": "string",
           "description": "The ID of the user who scanned the receipt."
         },
-        "storeName": {
-          "type": "string",
-          "description": "The name of the store."
-        },
-        "date": {
-          "type": "string",
-          "format": "date-time",
-          "description": "The date of the receipt."
-        },
-        "total": {
-          "type": "number",
-          "description": "The total amount of the receipt."
-        },
         "items": {
           "type": "array",
-          "description": "The items on the receipt.",
+          "description": "The food items on the receipt.",
           "items": {
-            "type": "object",
-            "properties": {
-              "name": {
-                "type": "string",
-                "description": "The name of the item."
-              },
-              "price": {
-                "type": "number",
-                "description": "The price of the item."
-              },
-              "category": {
-                "type": "string",
-                "description": "The category of the item (e.g., Groceries, Electronics, etc.)."
-              }
-            },
-            "required": ["name"]
+            "type": "string"
           }
         },
         "createdAt": {
@@ -77,6 +49,38 @@
         }
       },
       "required": ["userId", "createdAt", "items"]
+    },
+    "FoodScan": {
+      "title": "Food Scan",
+      "description": "A scanned food item.",
+      "type": "object",
+      "properties": {
+        "userId": {
+          "type": "string",
+          "description": "The ID of the user who scanned the food."
+        },
+        "item": {
+          "type": "string",
+          "description": "The name of the food item."
+        },
+        "condition": {
+          "type": "string",
+          "description": "The condition of the food item."
+        },
+        "suggestions": {
+          "type": "array",
+          "description": "Suggestions for using the food.",
+          "items": {
+            "type": "string"
+          }
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "The timestamp when the food was scanned."
+        }
+      },
+      "required": ["userId", "createdAt", "item", "condition", "suggestions"]
     }
   },
   "firestore": {
@@ -91,6 +95,12 @@
         "$ref": "#/entities/Receipt"
       },
       "description": "Stores scanned receipts."
+    },
+    "food_scans/{foodScanId}": {
+      "schema": {
+        "$ref": "#/entities/FoodScan"
+      },
+      "description": "Stores scanned food items."
     }
   }
 }
