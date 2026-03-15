@@ -4,20 +4,34 @@ import Logo from '../components/Logo';
 
 export default function SplashScreen() {
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-[#617953] text-[#d4d9c6]">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-[#617953] text-[#d4d9c6] relative overflow-hidden">
+      {/* Subtle background blobs that blend with the solid green */}
+      <div className="absolute -top-32 -right-32 w-80 h-80 bg-[#7a9a68]/20 rounded-full blur-3xl" />
+      <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-[#4a6040]/30 rounded-full blur-3xl" />
+
       <motion.div
         initial={{ scale: 0.5, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         transition={{ duration: 0.8, ease: "easeOut" }}
-        className="flex flex-col items-center"
+        className="flex flex-col items-center relative z-10"
       >
-        <motion.div
-          animate={{ rotate: 360 }}
-          transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
-          className="mb-6"
-        >
-          <Logo size={160} />
-        </motion.div>
+        {/* Logo with circular fill from bottom */}
+        <div className="mb-6 relative w-[160px] h-[160px]">
+          {/* Dimmed base logo — blends with background */}
+          <div className="opacity-20">
+            <Logo size={160} />
+          </div>
+          {/* Revealed logo — circular expand from bottom center */}
+          <motion.div
+            className="absolute inset-0"
+            initial={{ clipPath: 'circle(0% at 50% 100%)' }}
+            animate={{ clipPath: 'circle(100% at 50% 50%)' }}
+            transition={{ duration: 2, ease: 'easeInOut', delay: 0.3 }}
+          >
+            <Logo size={160} />
+          </motion.div>
+        </div>
+
         <motion.h1
           initial={{ y: 20, opacity: 0 }}
           animate={{ y: 0, opacity: 1 }}
