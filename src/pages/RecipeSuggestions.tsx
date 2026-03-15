@@ -81,6 +81,7 @@ export default function RecipeSuggestions() {
       const result = await generateRecipe(
         selectedItems.map(i => ({ name: i.name, condition: i.condition }))
       );
+      console.log('Generated recipe:', result);
       setRecipe(result);
     } catch (err) {
       console.error('Recipe generation failed:', err);

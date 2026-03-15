@@ -23,7 +23,7 @@ DEFAULT_SPOILAGE_LABELS = ["fresh", "ripe", "aging", "overripe", "spoiled"]
 IMAGE_MEAN = [0.485, 0.456, 0.406]
 IMAGE_STD = [0.229, 0.224, 0.225]
 DEFAULT_UNKNOWN_LABELS = "non_food,non-food,non food,background,other,unknown,not_food"
-DEFAULT_GEMINI_MODEL = "gemini-2.0-flash"
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash"
 
 MODEL_RUNTIME_CACHE: dict[str, object | None] = {"bundle": None, "mtime": None}
 
