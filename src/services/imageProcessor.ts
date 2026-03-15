@@ -21,7 +21,7 @@ export async function processImage(base64Data: string, mimeType: string): Promis
   let response: Response;
 
   try {
-    response = await fetch('/api/analyze', {
+    response = await fetch('https://wastewise-bh2f.onrender.com/analyze', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
