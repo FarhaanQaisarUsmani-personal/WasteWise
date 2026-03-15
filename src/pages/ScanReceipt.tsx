@@ -5,7 +5,8 @@ import { ArrowLeft, Camera, CheckCircle2, Loader2, RefreshCw, AlertCircle, Scan,
 import { processImage, ProcessResult } from '../services/imageProcessor';
 import { uploadImageToStorage } from '../services/storageService';
 import { db, auth } from '../firebase';
-import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
+import { collection, addDoc, doc, getDoc, updateDoc } from 'firebase/firestore';
+import { estimateExpiry } from '../services/geminiService';
 
 export default function ScanReceipt() {
   const navigate = useNavigate();
@@ -148,7 +149,7 @@ export default function ScanReceipt() {
                     imageUrl: imageUrl || null
                   });
                 } else if (res.type === 'food') {
-                  await addDoc(collection(db, 'food_scans'), {
+                  const foodDocRef = await addDoc(collection(db, 'food_scans'), {
                     userId,
                     item: res.item || 'Unknown',
                     condition: res.condition || 'Unknown',
@@ -156,6 +157,10 @@ export default function ScanReceipt() {
                     createdAt: now,
                     imageUrl: imageUrl || null
                   });
+                  // Estimate expiry in background
+                  estimateExpiry(res.item || 'Unknown', res.condition || 'Unknown')
+                    .then(expiryDate => updateDoc(foodDocRef, { estimatedExpiry: expiryDate }))
+                    .catch(err => console.error('Expiry estimation failed:', err));
                 }
               } catch (saveErr) {
                 console.error("Error saving scan to Firestore:", saveErr);
@@ -245,7 +250,7 @@ export default function ScanReceipt() {
                 imageUrl: imageUrl || null
               });
             } else if (res.type === 'food') {
-              await addDoc(collection(db, 'food_scans'), {
+              const foodDocRef = await addDoc(collection(db, 'food_scans'), {
                 userId,
                 item: res.item || 'Unknown',
                 condition: res.condition || 'Unknown',
@@ -253,6 +258,10 @@ export default function ScanReceipt() {
                 createdAt: now,
                 imageUrl: imageUrl || null
               });
+              // Estimate expiry in background
+              estimateExpiry(res.item || 'Unknown', res.condition || 'Unknown')
+                .then(expiryDate => updateDoc(foodDocRef, { estimatedExpiry: expiryDate }))
+                .catch(err => console.error('Expiry estimation failed:', err));
             }
           } catch (saveErr) {
             console.error("Error saving scan to Firestore:", saveErr);
