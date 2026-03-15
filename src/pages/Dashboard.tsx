@@ -11,7 +11,7 @@ import { uploadImageToStorage } from '../services/storageService';
 import { estimateCO2Impact } from '../services/geminiService';
 import { useTheme } from '../components/ThemeProvider';
 import Logo from '../components/Logo';
-import { listenToReceipts, listenToFoodScans, addReceipt, addFoodScan, listenToWasteLogs, addWasteLog } from '../services/firestoreService';
+import { listenToReceipts, listenToFoodScans, addReceipt, addFoodScan, addReceiptItemsAsFoodScans, listenToWasteLogs, addWasteLog } from '../services/firestoreService';
 
 interface ReceiptData {
   id: string;
@@ -26,6 +26,8 @@ interface FoodScanData {
   type: 'food';
   item: string;
   condition: string;
+  salvageStatus?: 'not_spoiled' | 'partially_spoiled' | 'fully_spoiled' | 'unknown';
+  salvageable?: boolean;
   suggestions: string[];
   etaRange?: string;
   repurposingActions?: string[];
@@ -172,10 +174,17 @@ export default function Dashboard() {
                 createdAt: now,
                 imageUrl: imageUrl || null
               });
+              await addReceiptItemsAsFoodScans(userId, {
+                items: res.items || [],
+                createdAt: now,
+                imageUrl: imageUrl || null
+              });
             } else if (res.type === 'food') {
               await addFoodScan(userId, {
                 item: res.item || 'Unknown',
                 condition: res.condition || 'Unknown',
+                salvageStatus: res.salvageStatus || 'unknown',
+                salvageable: typeof res.salvageable === 'boolean' ? res.salvageable : true,
                 suggestions: res.suggestions || [],
                 etaRange: res.etaRange || null,
                 repurposingActions: res.repurposingActions || [],
@@ -267,6 +276,36 @@ export default function Dashboard() {
     })
     .sort((a, b) => a.daysLeft - b.daysLeft);
 
+  // Check if a food item is already wasted
+  const wastedItemTimestamps = new Set(wasteLogs.map(w => w.item));
+
+  const getSpoilageStatus = (
+    condition?: string,
+    salvageStatus?: 'not_spoiled' | 'partially_spoiled' | 'fully_spoiled' | 'unknown',
+  ) => {
+    const normalizedSalvage = (salvageStatus || '').toLowerCase();
+    const normalizedCondition = (condition || '').toLowerCase();
+
+    if (normalizedSalvage === 'fully_spoiled' || normalizedCondition === 'spoiled') {
+      return {
+        label: 'Fully Spoiled',
+        helper: 'Discard now. Not safe to eat.',
+        classes: 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300',
+      };
+    }
+    if (
+      normalizedSalvage === 'partially_spoiled'
+      || normalizedCondition === 'aging'
+      || normalizedCondition === 'overripe'
+    ) {
+      return {
+        label: 'Salvageable',
+        helper: 'Trim bad parts and cook/use today.',
+        classes: 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300',
+      };
+    }
+    return null;
+  };
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-6 transition-colors duration-300 relative overflow-hidden">
       {/* Background blobs */}
@@ -642,7 +681,14 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <p className="text-xs text-zinc-500 dark:text-zinc-400 uppercase tracking-wider font-semibold mb-1">Condition</p>
-                        <p className="text-zinc-900 dark:text-zinc-200 capitalize">{activity.condition}</p>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="text-zinc-900 dark:text-zinc-200 capitalize">{activity.condition}</p>
+                          {getSpoilageStatus(activity.condition, activity.salvageStatus) && (
+                            <span className={`px-2.5 py-1 rounded-full text-[11px] font-semibold ${getSpoilageStatus(activity.condition, activity.salvageStatus)?.classes}`}>
+                              {getSpoilageStatus(activity.condition, activity.salvageStatus)?.label}
+                            </span>
+                          )}
+                        </div>
                       </div>
                     </div>
                   )}
@@ -753,10 +799,42 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                  {selectedActivity.etaRange && (
-                    <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-5 border border-amber-200 dark:border-amber-800/30">
-                      <p className="text-xs text-amber-700 dark:text-amber-400 uppercase tracking-wider font-semibold mb-3">Time Until Spoilage</p>
-                      <p className="text-lg text-amber-900 dark:text-amber-100 font-semibold mb-4">⏱️ {selectedActivity.etaRange}</p>
+                      <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-5 border border-zinc-200 dark:border-zinc-700">
+                        <p className="text-xs text-zinc-500 dark:text-zinc-400 uppercase tracking-wider font-semibold mb-3">Freshness Level</p>
+                        <div className="flex items-center gap-3 mb-2">
+                          <span className={`inline-block w-3 h-3 rounded-full ${
+                            selectedActivity.condition === 'fresh' ? 'bg-green-500' :
+                            selectedActivity.condition === 'ripe' ? 'bg-yellow-500' :
+                            selectedActivity.condition === 'aging' ? 'bg-orange-500' :
+                            selectedActivity.condition === 'overripe' ? 'bg-orange-600' :
+                            'bg-red-500'
+                          }`} />
+                          <span className="text-lg text-zinc-900 dark:text-zinc-100 capitalize font-semibold">{selectedActivity.condition}</span>
+                          {getSpoilageStatus(selectedActivity.condition, selectedActivity.salvageStatus) && (
+                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getSpoilageStatus(selectedActivity.condition, selectedActivity.salvageStatus)?.classes}`}>
+                              {getSpoilageStatus(selectedActivity.condition, selectedActivity.salvageStatus)?.label}
+                            </span>
+                          )}
+                        </div>
+                        {getSpoilageStatus(selectedActivity.condition, selectedActivity.salvageStatus)?.helper && (
+                          <p className="text-sm text-zinc-600 dark:text-zinc-300 mb-2">
+                            {getSpoilageStatus(selectedActivity.condition, selectedActivity.salvageStatus)?.helper}
+                          </p>
+                        )}
+                        <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                          selectedActivity.condition === 'fresh' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
+                          selectedActivity.condition === 'ripe' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
+                          selectedActivity.condition === 'aging' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
+                          selectedActivity.condition === 'overripe' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
+                          'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                        }`}>
+                          {selectedActivity.condition === 'fresh' && '✓ Best consumed now'}
+                          {selectedActivity.condition === 'ripe' && '○ Ready to eat'}
+                          {selectedActivity.condition === 'aging' && '⚠ Use soon'}
+                          {selectedActivity.condition === 'overripe' && '⚠ Best for cooking'}
+                          {selectedActivity.condition === 'spoiled' && '✗ Not safe to eat'}
+                        </div>
+                      </div>
 
                       {selectedActivity.repurposingActions && selectedActivity.repurposingActions.length > 0 && (
                         <div>

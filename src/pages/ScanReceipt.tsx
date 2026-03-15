@@ -7,7 +7,7 @@ import { uploadImageToStorage } from '../services/storageService';
 import { db, auth } from '../firebase';
 import { collection, addDoc, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { estimateExpiry } from '../services/geminiService';
-import { addReceipt, addFoodScan } from '../services/firestoreService';
+import { addReceipt, addFoodScan, addReceiptItemsAsFoodScans } from '../services/firestoreService';
 
 export default function ScanReceipt() {
   const navigate = useNavigate();
@@ -152,10 +152,17 @@ export default function ScanReceipt() {
                     createdAt: now,
                     imageUrl: imageUrl || null
                   });
+                  await addReceiptItemsAsFoodScans(userId, {
+                    items: res.items || [],
+                    createdAt: now,
+                    imageUrl: imageUrl || null
+                  });
                 } else if (res.type === 'food') {
                   const foodDocRef = await addFoodScan(userId, {
                     item: res.item || 'Unknown',
                     condition: res.condition || 'Unknown',
+                    salvageStatus: res.salvageStatus || 'unknown',
+                    salvageable: typeof res.salvageable === 'boolean' ? res.salvageable : true,
                     suggestions: res.suggestions || [],
                     etaRange: res.etaRange || null,
                     repurposingActions: res.repurposingActions || [],
@@ -256,11 +263,20 @@ export default function ScanReceipt() {
                 createdAt: now,
                 imageUrl: imageUrl || null
               });
+              await addReceiptItemsAsFoodScans(userId, {
+                items: res.items || [],
+                createdAt: now,
+                imageUrl: imageUrl || null
+              });
             } else if (res.type === 'food') {
               const foodDocRef = await addFoodScan(userId, {
                 item: res.item || 'Unknown',
                 condition: res.condition || 'Unknown',
+                salvageStatus: res.salvageStatus || 'unknown',
+                salvageable: typeof res.salvageable === 'boolean' ? res.salvageable : true,
                 suggestions: res.suggestions || [],
+                etaRange: res.etaRange || null,
+                repurposingActions: res.repurposingActions || [],
                 createdAt: now,
                 imageUrl: imageUrl || null
               });
@@ -298,6 +314,33 @@ export default function ScanReceipt() {
     setError(null);
     startCamera();
   };
+
+  const getSpoilageStatus = (scanResult?: ProcessResult | null) => {
+    const salvageStatus = (scanResult?.salvageStatus || '').toLowerCase();
+    const fallbackCondition = (scanResult?.condition || '').toLowerCase();
+
+    if (salvageStatus === 'fully_spoiled' || fallbackCondition === 'spoiled') {
+      return {
+        label: 'Fully Spoiled',
+        helper: 'Discard now. Not safe to eat.',
+        classes: 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300 dark:border-red-800/40',
+      };
+    }
+    if (
+      salvageStatus === 'partially_spoiled'
+      || fallbackCondition === 'aging'
+      || fallbackCondition === 'overripe'
+    ) {
+      return {
+        label: 'Salvageable',
+        helper: 'Trim bad parts and cook/use today.',
+        classes: 'bg-amber-100 text-amber-800 border-amber-200 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-800/40',
+      };
+    }
+    return null;
+  };
+
+  const spoilageStatus = getSpoilageStatus(result);
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-white p-6 flex flex-col transition-colors duration-300">
@@ -452,22 +495,58 @@ export default function ScanReceipt() {
                   <motion.div
                     initial={{ opacity: 0, scale: 0.92, y: 12 }}
                     animate={{ opacity: 1, scale: 1, y: 0 }}
-                    className="w-full max-w-lg rounded-[2rem] border border-white/10 bg-white/95 dark:bg-zinc-900/95 shadow-2xl overflow-hidden"
+                    className="w-full max-w-lg max-h-[90vh] rounded-[2rem] border border-white/10 bg-white/95 dark:bg-zinc-900/95 shadow-2xl overflow-hidden flex flex-col"
                   >
-                    <div className="p-6 sm:p-8">
+                    <div className="p-6 sm:p-8 overflow-y-auto">
                       <div className="flex justify-center mb-5">
                         <div className="bg-emerald-100 dark:bg-emerald-500/20 p-5 rounded-full">
                           <CheckCircle2 size={64} className="text-emerald-600 dark:text-emerald-400" />
                         </div>
                       </div>
                       <h2 className="text-3xl font-bold text-zinc-900 dark:text-white text-center mb-2">
-                        Scan Complete
+                        {result.type === 'receipt' ? 'Receipt Detected' : 'Scan Complete'}
                       </h2>
                       <p className="text-center text-zinc-500 dark:text-zinc-400 mb-6">
                         {result.type === 'food'
                           ? 'Detected by your trained model.'
+                          : result.type === 'receipt'
+                          ? 'Your trained model identified a receipt scan.'
                           : result.message || 'The scan is complete.'}
                       </p>
+
+                      {result.type === 'receipt' && (
+                        <div className="space-y-4 mb-6">
+                          <div className="rounded-2xl bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 p-5">
+                            <p className="text-xs uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400 mb-2">Scan Type</p>
+                            <h3 className="text-2xl font-bold text-zinc-900 dark:text-white">Receipt</h3>
+                            <p className="mt-2 text-zinc-600 dark:text-zinc-300">
+                              Entries Read: <span className="font-semibold text-zinc-900 dark:text-white">{result.items?.length || 0}</span>
+                            </p>
+                            {typeof result.confidence === 'number' && (
+                              <p className="mt-3 text-zinc-600 dark:text-zinc-300">
+                                Confidence: <span className="font-semibold text-zinc-900 dark:text-white">{Math.round(result.confidence * 100)}%</span>
+                              </p>
+                            )}
+                          </div>
+
+                          {result.items && result.items.length > 0 ? (
+                            <div className="rounded-2xl bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 p-5">
+                              <h4 className="font-semibold text-zinc-900 dark:text-white mb-3">Entries Read</h4>
+                              <ul className="space-y-2">
+                                {result.items.map((itemName, idx) => (
+                                  <li key={idx} className="text-sm text-zinc-700 dark:text-zinc-300 bg-zinc-100 dark:bg-zinc-800 p-2 rounded-md">
+                                    {itemName}
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          ) : (
+                            <div className="rounded-2xl bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 p-5 text-sm text-zinc-600 dark:text-zinc-300">
+                              No receipt entries could be read from this scan.
+                            </div>
+                          )}
+                        </div>
+                      )}
 
                       {result.type === 'food' && (
                         <div className="space-y-4 mb-6">
@@ -501,6 +580,16 @@ export default function ScanReceipt() {
                                   <span className="text-sm text-zinc-500 dark:text-zinc-400">({Math.round(result.conditionConfidence * 100)}%)</span>
                                 )}
                               </div>
+                              {spoilageStatus && (
+                                <div className={`mt-4 inline-flex items-center rounded-full border px-3 py-1.5 text-sm font-semibold ${spoilageStatus.classes}`}>
+                                  {spoilageStatus.label}
+                                </div>
+                              )}
+                              {spoilageStatus?.helper && (
+                                <p className="mt-2 text-sm text-zinc-600 dark:text-zinc-300">
+                                  {spoilageStatus.helper}
+                                </p>
+                              )}
                             </div>
                           )}
 

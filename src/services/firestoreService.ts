@@ -95,12 +95,56 @@ export async function addReceipt(userId, receipt) {
 
 }
 
+export async function addReceiptItemsAsFoodScans(userId, receiptData) {
+
+  const createdAt = receiptData.createdAt || new Date().toISOString()
+  const imageUrl = receiptData.imageUrl || null
+  const rawItems = Array.isArray(receiptData.items) ? receiptData.items : []
+
+  const uniqueItems = []
+  const seen = new Set()
+
+  for (const value of rawItems) {
+    if (typeof value !== 'string') continue
+    const normalized = value.trim().replace(/\s+/g, ' ')
+    if (!normalized) continue
+    const key = normalized.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    uniqueItems.push(normalized)
+  }
+
+  if (uniqueItems.length === 0) {
+    return
+  }
+
+  await Promise.all(
+    uniqueItems.map((itemName) =>
+      addDoc(collection(db, 'food_scans'), {
+        userId,
+        item: itemName,
+        condition: 'Unknown',
+        suggestions: [],
+        etaRange: null,
+        repurposingActions: [],
+        createdAt,
+        imageUrl,
+        source: 'receipt',
+        importedFromReceipt: true
+      })
+    )
+  )
+
+}
+
 export async function addFoodScan(userId, foodScan) {
 
   const docRef = await addDoc(collection(db, 'food_scans'), {
     userId,
     item: foodScan.item || 'Unknown',
     condition: foodScan.condition || 'Unknown',
+    salvageStatus: foodScan.salvageStatus || null,
+    salvageable: typeof foodScan.salvageable === 'boolean' ? foodScan.salvageable : null,
     suggestions: foodScan.suggestions || [],
     etaRange: foodScan.etaRange || null,
     repurposingActions: foodScan.repurposingActions || [],
