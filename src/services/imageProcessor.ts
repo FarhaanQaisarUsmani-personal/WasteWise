@@ -9,6 +9,8 @@ export interface ProcessResult {
   message?: string;
   confidence?: number;
   conditionConfidence?: number;
+  salvageStatus?: 'not_spoiled' | 'partially_spoiled' | 'fully_spoiled' | 'unknown';
+  salvageable?: boolean;
   topPredictions?: Array<{
     label: string;
     confidence: number;
@@ -59,6 +61,8 @@ export async function processImage(base64Data: string, mimeType: string): Promis
     message: parsedResult.message,
     confidence: parsedResult.confidence,
     conditionConfidence: parsedResult.conditionConfidence,
+    salvageStatus: parsedResult.salvageStatus,
+    salvageable: parsedResult.salvageable,
     topPredictions: parsedResult.topPredictions,
   };
 }

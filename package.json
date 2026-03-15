@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "concurrently -n web,api \"npm:dev:web\" \"npm:dev:api\"",
     "dev:web": "vite --port=3000 --host=0.0.0.0",
-    "dev:api": "powershell -Command \"if (Get-NetTCPConnection -LocalPort 8000 -ErrorAction SilentlyContinue) { Write-Host 'API already running on port 8000, reusing existing process.'; exit 0 } else { .venv\\Scripts\\python -m uvicorn backend.ml_api.app:app --host 0.0.0.0 --port 8000 }\"",
+    "dev:api": "sh -c 'if curl -fsS http://127.0.0.1:8000/api/health >/dev/null 2>&1; then echo \"API already healthy on port 8000, monitoring existing process.\"; while sleep 5; do curl -fsS http://127.0.0.1:8000/api/health >/dev/null 2>&1 || { echo \"API became unavailable.\"; exit 1; }; done; fi; if lsof -iTCP:8000 -sTCP:LISTEN >/dev/null 2>&1; then echo \"Port 8000 is busy but API health check failed. Stop the stale process and retry.\"; exit 1; fi; exec .venv/bin/python -m uvicorn backend.ml_api.app:app --host 0.0.0.0 --port 8000'",
     "api": "npm run dev:api",
     "build": "vite build",
     "preview": "vite preview",
