@@ -38,6 +38,8 @@ class AnalyzeResponse(BaseModel):
     item: str | None = None
     condition: str | None = None
     suggestions: list[str] | None = None
+    etaRange: str | None = None
+    repurposingActions: list[str] | None = None
     message: str | None = None
     confidence: float | None = None
     conditionConfidence: float | None = None
@@ -108,6 +110,71 @@ class GeminiOutputGenerator:
 
         message = output.get("message")
         return message if isinstance(message, str) else None
+
+    def generate_suggestions(
+        self,
+        item: str,
+        condition: str,
+        confidence: float,
+    ) -> list[str] | None:
+        if not self.enabled:
+            return None
+
+        prompt = (
+            "You are helping the WasteWise app provide practical usage suggestions for scanned food. "
+            "Return strict JSON only with this schema: "
+            '{"suggestions": ["suggestion1", "suggestion2", "suggestion3"]}. '
+            "Generate 2-3 actionable suggestions based on the food type and ripeness condition. "
+            "Each suggestion should be under 80 characters and provide practical advice. "
+            "Include: optimal consumption timeframe, storage tips, preparation ideas, or warnings. "
+            "Tailor suggestions based on condition (fresh=eat now, ripe=ready, aging=cook, overripe=process, spoiled=discard). "
+            f"Food item: {item}. "
+            f"Condition: {condition}. "
+            f"Confidence: {confidence}."
+        )
+        output = self._generate_json(prompt)
+        if not isinstance(output, dict):
+            return None
+
+        suggestions = output.get("suggestions")
+        if isinstance(suggestions, list) and all(isinstance(s, str) for s in suggestions):
+            return suggestions
+        return None
+
+    def generate_eta_and_repurposing(
+        self,
+        item: str,
+        condition: str,
+        confidence: float,
+    ) -> dict | None:
+        if not self.enabled:
+            return None
+
+        prompt = (
+            "You are helping the WasteWise app provide practical timeline and repurposing options for scanned food. "
+            "Return strict JSON only with this schema: "
+            '{"etaRange": string, "repurposingActions": ["action1", "action2", "action3"]}. '
+            "Generate a realistic ETA showing how many days until the food reaches the next spoilage stage. "
+            "For spoiled items, write 'Already spoiled - do not eat'. "
+            "For fresh/ripe items, include storage method (e.g. room temp, fridge). "
+            "Generate 2-3 practical repurposing actions the user can take before it spoils. "
+            "Each action should be under 60 characters and mention: consumption timing, storage, preparation, or usage ideas. "
+            "Tailor actions based on condition: fresh/ripe=storage/consumption, aging=cooking, overripe=smoothies/baking/jam, spoiled=composting/discard. "
+            f"Food item: {item}. "
+            f"Condition: {condition}."
+        )
+        output = self._generate_json(prompt)
+        if not isinstance(output, dict):
+            return None
+
+        eta_range = output.get("etaRange")
+        repurposing = output.get("repurposingActions")
+
+        if isinstance(eta_range, str) and isinstance(repurposing, list):
+            if all(isinstance(a, str) for a in repurposing):
+                return {"etaRange": eta_range, "repurposingActions": repurposing}
+
+        return None
 
     def _generate_json(self, prompt: str) -> dict | None:
         payload = {
@@ -358,6 +425,16 @@ class ModelBundle:
             confidence=top_confidence,
             top_predictions=top_predictions,
         )
+        suggestions = self.gemini.generate_suggestions(
+            item=predicted_label,
+            condition=condition,
+            confidence=top_confidence,
+        )
+        eta_repurpose = self.gemini.generate_eta_and_repurposing(
+            item=predicted_label,
+            condition=condition,
+            confidence=top_confidence,
+        )
         fallback_message = (
             f"Detected {predicted_label} with {round(top_confidence * 100)}% confidence."
         )
@@ -366,7 +443,9 @@ class ModelBundle:
             type="food",
             item=predicted_label,
             condition=condition,
-            suggestions=None,
+            suggestions=suggestions,
+            etaRange=eta_repurpose.get("etaRange") if eta_repurpose else None,
+            repurposingActions=eta_repurpose.get("repurposingActions") if eta_repurpose else None,
             message=gemini_message or fallback_message,
             confidence=round(top_confidence, 4),
             conditionConfidence=round(spoilage_confidence, 4) if spoilage_confidence is not None else None,

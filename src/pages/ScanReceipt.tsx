@@ -154,6 +154,8 @@ export default function ScanReceipt() {
                     item: res.item || 'Unknown',
                     condition: res.condition || 'Unknown',
                     suggestions: res.suggestions || [],
+                    etaRange: res.etaRange || null,
+                    repurposingActions: res.repurposingActions || [],
                     createdAt: now,
                     imageUrl: imageUrl || null
                   });
@@ -470,14 +472,65 @@ export default function ScanReceipt() {
                               </div>
                               {typeof result.confidence === 'number' && (
                                 <div className="rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 px-3 py-1.5 text-sm font-semibold">
-                                  Score: {Math.round(result.confidence * 100)}%
+                                  Confidence: {Math.round(result.confidence * 100)}%
                                 </div>
                               )}
                             </div>
-                            {result.message && (
-                              <p className="text-zinc-600 dark:text-zinc-300">{result.message}</p>
-                            )}
                           </div>
+
+                          {result.condition && (
+                            <div className="rounded-2xl bg-zinc-50 dark:bg-zinc-800/70 border border-zinc-200 dark:border-zinc-700 p-5">
+                              <p className="text-xs uppercase tracking-[0.24em] text-zinc-500 dark:text-zinc-400 mb-2">Freshness Level</p>
+                              <div className="flex items-center gap-3">
+                                <span className={`inline-block w-3 h-3 rounded-full ${
+                                  result.condition === 'fresh' ? 'bg-green-500' :
+                                  result.condition === 'ripe' ? 'bg-yellow-500' :
+                                  result.condition === 'aging' ? 'bg-orange-500' :
+                                  result.condition === 'overripe' ? 'bg-orange-600' :
+                                  'bg-red-500'
+                                }`} />
+                                <span className="text-lg font-semibold text-zinc-900 dark:text-white capitalize">{result.condition}</span>
+                                {result.conditionConfidence && (
+                                  <span className="text-sm text-zinc-500 dark:text-zinc-400">({Math.round(result.conditionConfidence * 100)}%)</span>
+                                )}
+                              </div>
+                            </div>
+                          )}
+
+                          {result.etaRange && (
+                            <div className="rounded-2xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/30 p-5">
+                              <p className="text-xs uppercase tracking-[0.24em] text-amber-700 dark:text-amber-400 font-semibold mb-3">Time Until Spoilage</p>
+                              <p className="text-base font-semibold text-amber-900 dark:text-amber-100 mb-4">⏱️ {result.etaRange}</p>
+
+                              {result.repurposingActions && result.repurposingActions.length > 0 && (
+                                <div>
+                                  <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-3">What You Can Do:</p>
+                                  <ul className="space-y-2">
+                                    {result.repurposingActions.map((action, idx) => (
+                                      <li key={idx} className="flex items-start gap-2 text-sm text-amber-900 dark:text-amber-100">
+                                        <span className="shrink-0 mt-0.5">→</span>
+                                        <span>{action}</span>
+                                      </li>
+                                    ))}
+                                  </ul>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {result.suggestions && result.suggestions.length > 0 && (
+                            <div>
+                              <h4 className="font-semibold text-zinc-900 dark:text-white mb-3">Suggestions</h4>
+                              <ul className="space-y-2">
+                                {result.suggestions.map((sug, idx) => (
+                                  <li key={idx} className="flex items-start gap-2 text-sm text-zinc-700 dark:text-zinc-300 bg-zinc-50 dark:bg-zinc-800/30 p-3 rounded-lg border border-zinc-100 dark:border-zinc-800">
+                                    <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                                    <span className="leading-relaxed">{sug}</span>
+                                  </li>
+                                ))}
+                              </ul>
+                            </div>
+                          )}
                         </div>
                       )}
 
