@@ -4,6 +4,8 @@ export interface ProcessResult {
   item?: string;
   condition?: string;
   suggestions?: string[];
+  etaRange?: string;
+  repurposingActions?: string[];
   message?: string;
   confidence?: number;
   conditionConfidence?: number;
@@ -52,6 +54,8 @@ export async function processImage(base64Data: string, mimeType: string): Promis
     item: parsedResult.item,
     condition: parsedResult.condition,
     suggestions: parsedResult.suggestions,
+    etaRange: parsedResult.etaRange,
+    repurposingActions: parsedResult.repurposingActions,
     message: parsedResult.message,
     confidence: parsedResult.confidence,
     conditionConfidence: parsedResult.conditionConfidence,
