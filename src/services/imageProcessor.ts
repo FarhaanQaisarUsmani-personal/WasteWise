@@ -21,13 +21,14 @@ export async function processImage(base64Data: string, mimeType: string): Promis
   let response: Response;
 
   try {
+    const cleanBase64 = base64Data.replace(/^data:image\/\w+;base64,/, '');
     response = await fetch('https://wastewise-bh2f.onrender.com/api/analyze', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        image: base64Data,
+        image: cleanBase64,
         mimeType,
       }),
     });
