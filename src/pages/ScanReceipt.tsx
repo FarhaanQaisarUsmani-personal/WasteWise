@@ -44,9 +44,8 @@ export default function ScanReceipt() {
 
   useEffect(() => {
     successRef.current = success;
-    streamRef.current = stream;
     errorRef.current = Boolean(error);
-  }, [success, stream, error]);
+  }, [success, error]);
 
   const startCamera = async () => {
     setError(null);
@@ -67,6 +66,7 @@ export default function ScanReceipt() {
         });
       }
       
+      streamRef.current = mediaStream;
       setStream(mediaStream);
       if (videoRef.current) {
         videoRef.current.srcObject = mediaStream;
@@ -80,8 +80,12 @@ export default function ScanReceipt() {
   const stopCamera = () => {
     if (streamRef.current) {
       streamRef.current.getTracks().forEach(track => track.stop());
-      setStream(null);
+      streamRef.current = null;
     }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+    setStream(null);
   };
 
   useEffect(() => {
@@ -172,6 +176,7 @@ export default function ScanReceipt() {
 
             setResult(res);
             setCapturedPreview(dataUrl);
+            successRef.current = true; // sync update so finally block sees it immediately
             setSuccess(true);
             stopCamera();
             return; // Stop looping
@@ -273,6 +278,7 @@ export default function ScanReceipt() {
 
         setResult(res);
         setCapturedPreview(dataUrl);
+        successRef.current = true; // sync update so stopCamera runs with correct state
         setSuccess(true);
         stopCamera();
       }

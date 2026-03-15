@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { collection, query, where, orderBy, getDocs, addDoc, deleteDoc, doc, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase';
-import { ArrowLeft, ChefHat, Loader2, Sun, Moon, User as UserIcon, Sparkles, Clock, X } from 'lucide-react';
+import { ArrowLeft, ChefHat, Loader2, Sun, Moon, User as UserIcon, Sparkles, Clock, X, Bookmark, BookmarkCheck, Trash2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { generateRecipe, type Recipe } from '../services/geminiService';
 import { useTheme } from '../components/ThemeProvider';
@@ -13,6 +13,11 @@ interface FoodItem {
   name: string;
   condition: string;
   selected: boolean;
+}
+
+interface SavedRecipe extends Recipe {
+  id: string;
+  savedAt: string;
 }
 
 const glass = 'bg-white/60 dark:bg-zinc-900/50 backdrop-blur-xl border border-white/30 dark:border-zinc-700/30';
@@ -26,7 +31,9 @@ export default function RecipeSuggestions() {
   const [generating, setGenerating] = useState(false);
   const [recipe, setRecipe] = useState<Recipe | null>(null);
   const [displayName, setDisplayName] = useState('');
-
+  const [savedRecipes, setSavedRecipes] = useState<SavedRecipe[]>([]);
+  const [isSaved, setIsSaved] = useState(false);
+  const [savingRecipe, setSavingRecipe] = useState(false);
   useEffect(() => {
     const fetchData = async () => {
       if (!auth.currentUser) return;
@@ -64,6 +71,78 @@ export default function RecipeSuggestions() {
     };
     fetchData();
   }, []);
+
+  // Listen to saved recipes
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    const q = query(
+      collection(db, 'saved_recipes'),
+      where('userId', '==', auth.currentUser.uid),
+      orderBy('savedAt', 'desc')
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const recipes = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as SavedRecipe[];
+      setSavedRecipes(recipes);
+    }, (error) => {
+      console.error('Error listening to saved recipes:', error.message);
+      if (error.message.includes('index')) {
+        console.error('👆 Click the link above in Firebase console to create the required index');
+      }
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Check if current recipe is saved
+  useEffect(() => {
+    if (recipe && savedRecipes.length > 0) {
+      const found = savedRecipes.some(r => r.recipeName === recipe.recipeName);
+      setIsSaved(found);
+    } else {
+      setIsSaved(false);
+    }
+  }, [recipe, savedRecipes]);
+
+  const handleSaveRecipe = async () => {
+    if (!auth.currentUser || !recipe || savingRecipe) return;
+    setSavingRecipe(true);
+    try {
+      if (isSaved) {
+        // Unsave - find and delete
+        const existing = savedRecipes.find(r => r.recipeName === recipe.recipeName);
+        if (existing) {
+          await deleteDoc(doc(db, 'saved_recipes', existing.id));
+          console.log('✅ Recipe removed from saved');
+        }
+      } else {
+        // Save
+        await addDoc(collection(db, 'saved_recipes'), {
+          userId: auth.currentUser.uid,
+          recipeName: recipe.recipeName,
+          prepTime: recipe.prepTime,
+          ingredients: recipe.ingredients,
+          instructions: recipe.instructions,
+          savedAt: new Date().toISOString(),
+        });
+        console.log('✅ Recipe saved successfully');
+      }
+    } catch (err) {
+      console.error('Failed to save/unsave recipe:', err);
+      alert('Failed to save recipe. Check console for details.');
+    } finally {
+      setSavingRecipe(false);
+    }
+  };
+
+  const handleDeleteSaved = async (recipeId: string) => {
+    try {
+      await deleteDoc(doc(db, 'saved_recipes', recipeId));
+    } catch (err) {
+      console.error('Failed to delete saved recipe:', err);
+    }
+  };
 
   const toggleItem = (id: string) => {
     setFoodItems(prev =>
@@ -212,11 +291,31 @@ export default function RecipeSuggestions() {
             animate={{ opacity: 1, y: 0 }}
             className={`${glass} rounded-3xl p-6 shadow-lg`}
           >
-            <div className="flex items-center gap-2 mb-6">
-              <div className="bg-emerald-500/20 p-2 rounded-xl border border-emerald-500/20">
-                <Sparkles size={20} className="text-emerald-600 dark:text-emerald-400" />
+            <div className="flex items-center justify-between mb-6">
+              <div className="flex items-center gap-2">
+                <div className="bg-emerald-500/20 p-2 rounded-xl border border-emerald-500/20">
+                  <Sparkles size={20} className="text-emerald-600 dark:text-emerald-400" />
+                </div>
+                <h2 className="text-xl font-bold text-zinc-900 dark:text-white">{recipe.recipeName}</h2>
               </div>
-              <h2 className="text-xl font-bold text-zinc-900 dark:text-white">{recipe.recipeName}</h2>
+              <button
+                onClick={handleSaveRecipe}
+                disabled={savingRecipe}
+                className={`p-2.5 rounded-xl transition-all ${
+                  isSaved
+                    ? 'bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-500/30'
+                    : `${glassInner} text-zinc-500 dark:text-zinc-400 hover:text-amber-600 dark:hover:text-amber-400`
+                }`}
+                title={isSaved ? 'Remove from saved' : 'Save recipe'}
+              >
+                {savingRecipe ? (
+                  <Loader2 size={20} className="animate-spin" />
+                ) : isSaved ? (
+                  <BookmarkCheck size={20} />
+                ) : (
+                  <Bookmark size={20} />
+                )}
+              </button>
             </div>
 
             <div className="flex items-center gap-2 mb-6">
@@ -254,6 +353,55 @@ export default function RecipeSuggestions() {
                 {generating ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                 <span>Generate Another Recipe</span>
               </button>
+            </div>
+          </motion.div>
+        )}
+
+        {/* Saved Recipes Section */}
+        {savedRecipes.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className={`${glass} rounded-3xl p-6 shadow-lg mt-6`}
+          >
+            <div className="flex items-center gap-2 mb-4">
+              <div className="bg-amber-500/20 p-2 rounded-xl border border-amber-500/20">
+                <BookmarkCheck size={20} className="text-amber-600 dark:text-amber-400" />
+              </div>
+              <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Saved Recipes</h2>
+              <span className="text-sm text-zinc-500 dark:text-zinc-400">({savedRecipes.length})</span>
+            </div>
+
+            <div className="space-y-3">
+              {savedRecipes.map((saved) => (
+                <div
+                  key={saved.id}
+                  className={`${glassInner} rounded-2xl p-4 cursor-pointer hover:shadow-md transition-all`}
+                  onClick={() => setRecipe(saved)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-zinc-900 dark:text-white mb-1">{saved.recipeName}</h3>
+                      <div className="flex items-center gap-2 text-xs text-zinc-500 dark:text-zinc-400">
+                        <Clock size={12} />
+                        <span>{saved.prepTime}</span>
+                        <span className="mx-1">•</span>
+                        <span>{saved.ingredients.length} ingredients</span>
+                      </div>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleDeleteSaved(saved.id);
+                      }}
+                      className="p-2 text-zinc-400 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                      title="Remove from saved"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
           </motion.div>
         )}

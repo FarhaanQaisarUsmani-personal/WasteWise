@@ -111,6 +111,16 @@ service cloud.firestore {
              (!('foodScanId' in data) || data.foodScanId == null || data.foodScanId is string);
     }
 
+    function isValidSavedRecipe(data) {
+      return hasRequiredFields(['userId', 'recipeName', 'prepTime', 'ingredients', 'instructions', 'savedAt']) &&
+             data.userId is string &&
+             data.recipeName is string && data.recipeName.size() < 200 &&
+             data.prepTime is string &&
+             data.ingredients is list &&
+             data.instructions is string &&
+             data.savedAt is string && isValidDateString(data.savedAt);
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId);
       allow create: if isOwner(userId) && isValidUser(request.resource.data) && uidUnchanged();
@@ -136,6 +146,13 @@ service cloud.firestore {
       allow read: if isDocOwner();
       allow create: if isAuthenticated() && isValidWasteLog(request.resource.data) && userIdUnchanged();
       allow update: if isDocOwner() && isValidWasteLog(request.resource.data) && userIdNotModified();
+      allow delete: if isDocOwner();
+    }
+
+    match /saved_recipes/{recipeId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidSavedRecipe(request.resource.data) && userIdUnchanged();
+      allow update: if isDocOwner() && isValidSavedRecipe(request.resource.data) && userIdNotModified();
       allow delete: if isDocOwner();
     }
   }

@@ -21,6 +21,9 @@ export default function HomeMenu() {
   const [displayName, setDisplayName] = useState('');
   const [showNotifications, setShowNotifications] = useState(false);
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [lastViewedAt, setLastViewedAt] = useState<string>(() => {
+    return localStorage.getItem('notif_last_viewed') || '';
+  });
 
   useEffect(() => {
     const fetchProfile = async () => {
@@ -123,7 +126,20 @@ export default function HomeMenu() {
   const glassCard = 'bg-white/40 dark:bg-zinc-900/35 backdrop-blur-2xl border border-white/20 dark:border-zinc-700/20';
   const glassButton = 'bg-white/30 dark:bg-zinc-800/30 backdrop-blur-xl border border-white/20 dark:border-zinc-700/20';
 
-  const expiryCount = notifications.filter(n => n.type === 'expiry').length;
+  // Count notifications newer than last viewed time
+  const unreadCount = lastViewedAt
+    ? notifications.filter(n => new Date(n.timestamp).getTime() > new Date(lastViewedAt).getTime()).length
+    : notifications.length;
+
+  const handleNotificationClick = () => {
+    if (!showNotifications) {
+      // Opening the panel — mark all as read
+      const now = new Date().toISOString();
+      setLastViewedAt(now);
+      localStorage.setItem('notif_last_viewed', now);
+    }
+    setShowNotifications(!showNotifications);
+  };
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 flex flex-col items-center justify-center p-6 relative overflow-hidden transition-colors duration-300">
@@ -172,13 +188,13 @@ export default function HomeMenu() {
             {/* Notification button */}
             <div className="relative">
               <button
-                onClick={() => setShowNotifications(!showNotifications)}
+                onClick={handleNotificationClick}
                 className={`p-3 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-white hover:shadow-lg ${glassButton} rounded-full transition-all relative`}
               >
                 <Bell size={24} />
-                {expiryCount > 0 && (
+                {unreadCount > 0 && (
                   <span className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white text-xs font-bold rounded-full flex items-center justify-center">
-                    {expiryCount}
+                    {unreadCount}
                   </span>
                 )}
               </button>

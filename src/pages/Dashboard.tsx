@@ -5,7 +5,7 @@ import { auth, db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../firestoreError';
 import { ArrowLeft, Receipt, ShoppingBag, TrendingUp, UploadCloud, Loader2, Sun, Moon, Apple, X, User as UserIcon, Trash2, AlertTriangle, Leaf } from 'lucide-react';
 import { motion } from 'motion/react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, Legend, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import { processImage } from '../services/imageProcessor';
 import { uploadImageToStorage } from '../services/storageService';
 import { estimateCO2Impact } from '../services/geminiService';
@@ -45,8 +45,8 @@ interface WasteLog {
 
 type ActivityData = ReceiptData | FoodScanData;
 
-const glass = 'bg-white/60 dark:bg-zinc-900/50 backdrop-blur-xl border border-white/30 dark:border-zinc-700/30';
-const glassInner = 'bg-white/40 dark:bg-zinc-800/40 backdrop-blur-sm border border-white/20 dark:border-zinc-700/20';
+const glass = 'bg-white/25 dark:bg-zinc-900/25 backdrop-blur-2xl border border-white/20 dark:border-zinc-700/20';
+const glassInner = 'bg-white/20 dark:bg-zinc-800/20 backdrop-blur-xl border border-white/15 dark:border-zinc-700/15';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -229,11 +229,8 @@ export default function Dashboard() {
   const wastedItemNames = new Set(wasteLogs.map(w => w.item));
   const isWasted = (activity: FoodScanData) => wastedScanIds.has(activity.id) || (!activity.id && wastedItemNames.has(activity.item));
 
-  // Filter out wasted food scans from display (they're moved to waste logs)
-  const displayActivities = activities.filter(a => {
-    if (a.type === 'receipt') return true;
-    return !wastedScanIds.has(a.id) && !wastedItemNames.has(a.item);
-  });
+  // Show all activities; wasted items display a "Logged as wasted" badge inside the card
+  const displayActivities = activities;
 
   const pieData = [
     { name: 'Not Wasted', value: filteredActivities.filter(a => a.type === 'food' && !wastedScanIds.has(a.id) && !wastedItemNames.has(a.item)).length, color: '#10b981' },
@@ -250,9 +247,10 @@ export default function Dashboard() {
     .map(([date, co2]) => ({ date, co2: Math.round(Number(co2) * 100) / 100 }))
     .slice(-7);
 
-  // Expiry alerts — food scans with estimatedExpiry within 3 days
+  // Expiry alerts — food scans with estimatedExpiry within 3 days (exclude wasted items)
   const expiryAlerts = activities
     .filter((a): a is FoodScanData => a.type === 'food' && !!a.estimatedExpiry)
+    .filter(a => !wastedScanIds.has(a.id) && !wastedItemNames.has(a.item)) // exclude wasted
     .filter(a => {
       const expiry = new Date(a.estimatedExpiry!);
       const daysLeft = Math.ceil((expiry.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
@@ -431,7 +429,7 @@ export default function Dashboard() {
         {/* Charts Row */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Activity Breakdown */}
-          <div className={`${glass} p-6 rounded-3xl shadow-lg`}>
+          <div className={`${glass} p-8 rounded-[28px] shadow-xl flex flex-col backdrop-blur-3xl border border-white/10 dark:border-white/5`}>
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
               <h2 className="text-lg font-bold text-zinc-900 dark:text-white">Activity Breakdown</h2>
               <div className={`flex ${glassInner} p-1 rounded-xl`}>
@@ -451,31 +449,53 @@ export default function Dashboard() {
               </div>
             </div>
 
-            <div className="h-[250px] w-full">
+            <div className="flex flex-col items-center justify-center flex-1 gap-3">
               {pieData.length > 0 ? (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={pieData}
-                      cx="50%"
-                      cy="50%"
-                      innerRadius={55}
-                      outerRadius={90}
-                      paddingAngle={5}
-                      dataKey="value"
-                    >
-                      {pieData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={entry.color} />
-                      ))}
-                    </Pie>
-                    <Tooltip
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(8px)' }}
-                    />
-                    <Legend verticalAlign="bottom" height={36} />
-                  </PieChart>
-                </ResponsiveContainer>
+                <>
+                  <div className="w-[280px] h-[280px] mx-auto">
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart margin={{ top: 0, right: 0, bottom: 0, left: 0 }}>
+                        <Pie
+                          data={pieData}
+                          cx="50%"
+                          cy="50%"
+                          innerRadius={70}
+                          outerRadius={110}
+                          paddingAngle={0}
+                          dataKey="value"
+                          stroke="none"
+                          isAnimationActive={true}
+                          animationDuration={800}
+                          style={{ outline: 'none' }}
+                        >
+                          {pieData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip
+                          contentStyle={{
+                            borderRadius: '12px',
+                            border: '1px solid rgba(255,255,255,0.1)',
+                            boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                            background: 'rgba(39, 39, 42, 0.95)',
+                            backdropFilter: 'blur(8px)',
+                            color: '#fff'
+                          }}
+                        />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  <div className="flex items-center justify-center gap-8 mt-2">
+                    {pieData.map((entry) => (
+                      <div key={entry.name} className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: entry.color }} />
+                        <span className="text-sm text-zinc-600 dark:text-zinc-400">{entry.name} ({entry.value})</span>
+                      </div>
+                    ))}
+                  </div>
+                </>
               ) : (
-                <div className="h-full flex items-center justify-center text-zinc-500 dark:text-zinc-400">
+                <div className="h-[280px] flex items-center justify-center text-zinc-500 dark:text-zinc-400">
                   No activity in this period
                 </div>
               )}
@@ -499,7 +519,16 @@ export default function Dashboard() {
                     <XAxis dataKey="date" tick={{ fontSize: 12 }} stroke="#999" />
                     <YAxis tick={{ fontSize: 12 }} stroke="#999" unit="kg" />
                     <Tooltip
-                      contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)', background: 'rgba(255,255,255,0.9)', backdropFilter: 'blur(8px)' }}
+                      cursor={false}
+                      contentStyle={{
+                        borderRadius: '12px',
+                        border: '1px solid rgba(255,255,255,0.1)',
+                        boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)',
+                        background: 'rgba(39, 39, 42, 0.95)',
+                        backdropFilter: 'blur(8px)',
+                        color: '#fff'
+                      }}
+                      labelStyle={{ color: '#a1a1aa' }}
                       formatter={(value: number) => [`${value} kg`, 'CO2']}
                     />
                     <Bar dataKey="co2" fill="#ef4444" radius={[8, 8, 0, 0]} />
