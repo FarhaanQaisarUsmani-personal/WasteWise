@@ -11,7 +11,7 @@ import { uploadImageToStorage } from '../services/storageService';
 import { estimateCO2Impact } from '../services/geminiService';
 import { useTheme } from '../components/ThemeProvider';
 import Logo from '../components/Logo';
-import { listenToReceipts, listenToFoodScans, addReceipt, addFoodScan } from '../services/firestoreService';
+import { listenToReceipts, listenToFoodScans, addReceipt, addFoodScan, listenToWasteLogs, addWasteLog } from '../services/firestoreService';
 
 interface ReceiptData {
   id: string;
@@ -79,12 +79,6 @@ export default function Dashboard() {
   useEffect(() => {
     if (!auth.currentUser) return;
 
-    const qWaste = query(
-      collection(db, 'waste_logs'),
-      where('userId', '==', auth.currentUser.uid),
-      orderBy('timestamp', 'desc')
-    );
-
     let receiptsData: ReceiptData[] = [];
     let foodData: FoodScanData[] = [];
 
@@ -106,10 +100,8 @@ export default function Dashboard() {
       updateActivities();
     });
 
-    const unsubWaste = onSnapshot(qWaste, (snapshot) => {
-      setWasteLogs(snapshot.docs.map(d => ({ id: d.id, ...d.data() } as WasteLog)));
-    }, () => {
-      // waste_logs collection may not exist yet — silently ignore
+    const unsubWaste = listenToWasteLogs(auth.currentUser.uid, (wasteLogs) => {
+      setWasteLogs(wasteLogs as WasteLog[]);
     });
 
     return () => {
@@ -126,7 +118,7 @@ export default function Dashboard() {
     setWastingItemId(activity.id);
     try {
       const co2 = await estimateCO2Impact(activity.item);
-      await addDoc(collection(db, 'waste_logs'), {
+      await addWasteLog({
         userId: auth.currentUser.uid,
         item: activity.item,
         co2Impact: co2,

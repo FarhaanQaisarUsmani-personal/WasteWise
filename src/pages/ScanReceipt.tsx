@@ -149,8 +149,7 @@ export default function ScanReceipt() {
                     imageUrl: imageUrl || null
                   });
                 } else if (res.type === 'food') {
-                  const foodDocRef = await addDoc(collection(db, 'food_scans'), {
-                    userId,
+                  const foodDocRef = await addFoodScan(userId, {
                     item: res.item || 'Unknown',
                     condition: res.condition || 'Unknown',
                     suggestions: res.suggestions || [],
@@ -253,8 +252,7 @@ export default function ScanReceipt() {
                 imageUrl: imageUrl || null
               });
             } else if (res.type === 'food') {
-              const foodDocRef = await addDoc(collection(db, 'food_scans'), {
-                userId,
+              const foodDocRef = await addFoodScan(userId, {
                 item: res.item || 'Unknown',
                 condition: res.condition || 'Unknown',
                 suggestions: res.suggestions || [],

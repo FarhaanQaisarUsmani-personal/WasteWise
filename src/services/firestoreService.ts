@@ -70,18 +70,6 @@ export function listenToInventory(userId, callback) {
 
 }
 
-export async function addWasteLog(userId, waste) {
-
-  const wasteRef = collection(db, "users", userId, "wasteLogs")
-
-  await addDoc(wasteRef, {
-    food: waste.food,
-    quantity: waste.quantity,
-    co2Impact: waste.co2Impact || 0,
-    timestamp: serverTimestamp()
-  })
-
-}
 
 export async function getWasteLogs(userId) {
 
@@ -109,14 +97,18 @@ export async function addReceipt(userId, receipt) {
 
 export async function addFoodScan(userId, foodScan) {
 
-  await addDoc(collection(db, 'food_scans'), {
+  const docRef = await addDoc(collection(db, 'food_scans'), {
     userId,
     item: foodScan.item || 'Unknown',
     condition: foodScan.condition || 'Unknown',
     suggestions: foodScan.suggestions || [],
+    etaRange: foodScan.etaRange || null,
+    repurposingActions: foodScan.repurposingActions || [],
     createdAt: foodScan.createdAt || new Date().toISOString(),
     imageUrl: foodScan.imageUrl || null
   })
+
+  return docRef
 
 }
 
@@ -154,6 +146,37 @@ export function listenToFoodScans(userId, callback) {
       ...doc.data()
     }))
     callback(foodScans)
+  })
+
+}
+
+export function listenToWasteLogs(userId, callback) {
+
+  const qWaste = query(
+    collection(db, 'waste_logs'),
+    where('userId', '==', userId),
+    orderBy('timestamp', 'desc')
+  )
+
+  return onSnapshot(qWaste, snapshot => {
+    const wasteLogs = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }))
+    callback(wasteLogs)
+  }, () => {
+    // waste_logs collection may not exist yet — silently ignore
+  })
+
+}
+
+export async function addWasteLog(wasteLog) {
+
+  await addDoc(collection(db, 'waste_logs'), {
+    userId: wasteLog.userId,
+    item: wasteLog.item,
+    co2Impact: wasteLog.co2Impact,
+    timestamp: wasteLog.timestamp
   })
 
 }
