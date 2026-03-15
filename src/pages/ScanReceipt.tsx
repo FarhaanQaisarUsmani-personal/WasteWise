@@ -7,6 +7,7 @@ import { uploadImageToStorage } from '../services/storageService';
 import { db, auth } from '../firebase';
 import { collection, addDoc, doc, getDoc, updateDoc } from 'firebase/firestore';
 import { estimateExpiry } from '../services/geminiService';
+import { addReceipt, addFoodScan } from '../services/firestoreService';
 
 export default function ScanReceipt() {
   const navigate = useNavigate();
@@ -140,10 +141,9 @@ export default function ScanReceipt() {
               const now = new Date().toISOString();
               try {
                 const imageUrl = await uploadImageToStorage(base64Data, userId);
-                
+
                 if (res.type === 'receipt') {
-                  await addDoc(collection(db, 'receipts'), {
-                    userId,
+                  await addReceipt(userId, {
                     items: res.items || [],
                     createdAt: now,
                     imageUrl: imageUrl || null
@@ -166,6 +166,8 @@ export default function ScanReceipt() {
                 }
               } catch (saveErr) {
                 console.error("Error saving scan to Firestore:", saveErr);
+                setError("Failed to save scan. Please try again.");
+                return;
               }
             }
 
@@ -243,10 +245,9 @@ export default function ScanReceipt() {
           const now = new Date().toISOString();
           try {
             const imageUrl = await uploadImageToStorage(base64Data, userId);
-            
+
             if (res.type === 'receipt') {
-              await addDoc(collection(db, 'receipts'), {
-                userId,
+              await addReceipt(userId, {
                 items: res.items || [],
                 createdAt: now,
                 imageUrl: imageUrl || null
@@ -267,6 +268,8 @@ export default function ScanReceipt() {
             }
           } catch (saveErr) {
             console.error("Error saving scan to Firestore:", saveErr);
+            setError("Failed to save scan. Please try again.");
+            return;
           }
         }
 
