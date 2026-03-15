@@ -783,7 +783,17 @@ export default function Dashboard() {
                         'bg-red-500'
                       }`} />
                       <span className="text-lg text-zinc-900 dark:text-zinc-100 capitalize font-semibold">{selectedActivity.condition}</span>
+                      {getSpoilageStatus(selectedActivity.condition, selectedActivity.salvageStatus) && (
+                        <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getSpoilageStatus(selectedActivity.condition, selectedActivity.salvageStatus)?.classes}`}>
+                          {getSpoilageStatus(selectedActivity.condition, selectedActivity.salvageStatus)?.label}
+                        </span>
+                      )}
                     </div>
+                    {getSpoilageStatus(selectedActivity.condition, selectedActivity.salvageStatus)?.helper && (
+                      <p className="text-sm text-zinc-600 dark:text-zinc-300 mb-2">
+                        {getSpoilageStatus(selectedActivity.condition, selectedActivity.salvageStatus)?.helper}
+                      </p>
+                    )}
                     <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
                       selectedActivity.condition === 'fresh' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
                       selectedActivity.condition === 'ripe' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
@@ -799,42 +809,10 @@ export default function Dashboard() {
                     </div>
                   </div>
 
-                      <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-5 border border-zinc-200 dark:border-zinc-700">
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 uppercase tracking-wider font-semibold mb-3">Freshness Level</p>
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className={`inline-block w-3 h-3 rounded-full ${
-                            selectedActivity.condition === 'fresh' ? 'bg-green-500' :
-                            selectedActivity.condition === 'ripe' ? 'bg-yellow-500' :
-                            selectedActivity.condition === 'aging' ? 'bg-orange-500' :
-                            selectedActivity.condition === 'overripe' ? 'bg-orange-600' :
-                            'bg-red-500'
-                          }`} />
-                          <span className="text-lg text-zinc-900 dark:text-zinc-100 capitalize font-semibold">{selectedActivity.condition}</span>
-                          {getSpoilageStatus(selectedActivity.condition, selectedActivity.salvageStatus) && (
-                            <span className={`px-2.5 py-1 rounded-full text-xs font-semibold ${getSpoilageStatus(selectedActivity.condition, selectedActivity.salvageStatus)?.classes}`}>
-                              {getSpoilageStatus(selectedActivity.condition, selectedActivity.salvageStatus)?.label}
-                            </span>
-                          )}
-                        </div>
-                        {getSpoilageStatus(selectedActivity.condition, selectedActivity.salvageStatus)?.helper && (
-                          <p className="text-sm text-zinc-600 dark:text-zinc-300 mb-2">
-                            {getSpoilageStatus(selectedActivity.condition, selectedActivity.salvageStatus)?.helper}
-                          </p>
-                        )}
-                        <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                          selectedActivity.condition === 'fresh' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
-                          selectedActivity.condition === 'ripe' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
-                          selectedActivity.condition === 'aging' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
-                          selectedActivity.condition === 'overripe' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
-                          'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                        }`}>
-                          {selectedActivity.condition === 'fresh' && '✓ Best consumed now'}
-                          {selectedActivity.condition === 'ripe' && '○ Ready to eat'}
-                          {selectedActivity.condition === 'aging' && '⚠ Use soon'}
-                          {selectedActivity.condition === 'overripe' && '⚠ Best for cooking'}
-                          {selectedActivity.condition === 'spoiled' && '✗ Not safe to eat'}
-                        </div>
-                      </div>
+                  {selectedActivity.etaRange && (
+                    <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-5 border border-amber-200 dark:border-amber-800/30">
+                      <p className="text-xs text-amber-700 dark:text-amber-400 uppercase tracking-wider font-semibold mb-3">Time Until Spoilage</p>
+                      <p className="text-lg text-amber-900 dark:text-amber-100 font-semibold mb-4">⏱️ {selectedActivity.etaRange}</p>
 
                       {selectedActivity.repurposingActions && selectedActivity.repurposingActions.length > 0 && (
                         <div>
@@ -865,12 +843,8 @@ export default function Dashboard() {
                       </ul>
                     </div>
                   )}
-
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400 pt-4 border-t border-white/15 dark:border-zinc-700/20">
-                    Scanned on {new Date(selectedActivity.createdAt).toLocaleString()}
-                  </p>
-                </div>
-              )}
+                    </div>
+                  )}
             </div>
           </motion.div>
         </div>
