@@ -164,8 +164,15 @@ export function listenToWasteLogs(userId, callback) {
       ...doc.data()
     }))
     callback(wasteLogs)
-  }, () => {
-    // waste_logs collection may not exist yet — silently ignore
+  }, (error) => {
+    // Log the error - if it's a missing index error, it will include a link to create it
+    console.error('listenToWasteLogs error:', error.message)
+    // If index doesn't exist yet, Firebase error will include a URL to create it in the console
+    if (error.message.includes('index')) {
+      console.error('👆 Click the link above in the Firebase console to create the required index')
+    }
+    // Still call callback with empty array so UI doesn't break
+    callback([])
   })
 
 }
@@ -175,6 +182,7 @@ export async function addWasteLog(wasteLog) {
   await addDoc(collection(db, 'waste_logs'), {
     userId: wasteLog.userId,
     item: wasteLog.item,
+    foodScanId: wasteLog.foodScanId || null,
     co2Impact: wasteLog.co2Impact,
     timestamp: wasteLog.timestamp
   })

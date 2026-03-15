@@ -21,11 +21,11 @@ export default function SplashScreen() {
           <div className="opacity-20">
             <Logo size={160} />
           </div>
-          {/* Revealed logo — circular expand from bottom center */}
+          {/* Revealed logo — fill from bottom to top */}
           <motion.div
             className="absolute inset-0"
-            initial={{ clipPath: 'circle(0% at 50% 100%)' }}
-            animate={{ clipPath: 'circle(100% at 50% 50%)' }}
+            initial={{ clipPath: 'inset(100% 0 0 0)' }}
+            animate={{ clipPath: 'inset(0% 0 0 0)' }}
             transition={{ duration: 2, ease: 'easeInOut', delay: 0.3 }}
           >
             <Logo size={160} />

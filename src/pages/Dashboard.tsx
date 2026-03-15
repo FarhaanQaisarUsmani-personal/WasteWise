@@ -40,6 +40,7 @@ interface WasteLog {
   item: string;
   co2Impact: number;
   timestamp: string;
+  foodScanId?: string;
 }
 
 type ActivityData = ReceiptData | FoodScanData;
@@ -117,15 +118,23 @@ export default function Dashboard() {
 
     setWastingItemId(activity.id);
     try {
-      const co2 = await estimateCO2Impact(activity.item);
+      let co2 = 0.15; // fallback estimate (kg CO2 per food item)
+      try {
+        co2 = await estimateCO2Impact(activity.item);
+      } catch {
+        console.warn('Gemini CO2 estimation failed, using fallback value');
+      }
       await addWasteLog({
         userId: auth.currentUser.uid,
         item: activity.item,
+        foodScanId: activity.id,
         co2Impact: co2,
         timestamp: new Date().toISOString(),
       });
+      console.log(`✅ Marked ${activity.item} as wasted (${co2.toFixed(2)} kg CO2)`);
     } catch (err) {
       console.error('Failed to log waste:', err);
+      alert('Failed to log waste. Please try again.');
     } finally {
       setWastingItemId(null);
     }
@@ -215,9 +224,20 @@ export default function Dashboard() {
     }
   });
 
+  // Check if a food item is already wasted (by scan ID, fallback to item name)
+  const wastedScanIds = new Set(wasteLogs.map(w => w.foodScanId).filter(Boolean));
+  const wastedItemNames = new Set(wasteLogs.map(w => w.item));
+  const isWasted = (activity: FoodScanData) => wastedScanIds.has(activity.id) || (!activity.id && wastedItemNames.has(activity.item));
+
+  // Filter out wasted food scans from display (they're moved to waste logs)
+  const displayActivities = activities.filter(a => {
+    if (a.type === 'receipt') return true;
+    return !wastedScanIds.has(a.id) && !wastedItemNames.has(a.item);
+  });
+
   const pieData = [
-    { name: 'Receipts', value: filteredActivities.filter(a => a.type === 'receipt').length, color: '#10b981' },
-    { name: 'Food Scans', value: filteredActivities.filter(a => a.type === 'food').length, color: '#3b82f6' },
+    { name: 'Not Wasted', value: filteredActivities.filter(a => a.type === 'food' && !wastedScanIds.has(a.id) && !wastedItemNames.has(a.item)).length, color: '#10b981' },
+    { name: 'Wasted', value: wasteLogs.length, color: '#ef4444' },
   ].filter(d => d.value > 0);
 
   // CO2 bar chart data — aggregate by day (last 7 entries)
@@ -248,9 +268,6 @@ export default function Dashboard() {
       return { ...a, daysLeft, label };
     })
     .sort((a, b) => a.daysLeft - b.daysLeft);
-
-  // Check if a food item is already wasted
-  const wastedItemTimestamps = new Set(wasteLogs.map(w => w.item));
 
   return (
     <div className="min-h-screen bg-zinc-50 dark:bg-zinc-950 p-6 transition-colors duration-300 relative overflow-hidden">
@@ -517,7 +534,7 @@ export default function Dashboard() {
         {/* Recent Activity */}
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-2xl font-bold text-zinc-900 dark:text-white">Recent Activity</h2>
-          {activities.length > 4 && (
+          {displayActivities.length > 6 && (
             <button
               onClick={() => setShowAllActivity(!showAllActivity)}
               className="text-sm font-medium text-emerald-600 dark:text-emerald-400 hover:text-emerald-700 dark:hover:text-emerald-300 transition-colors"
@@ -531,7 +548,7 @@ export default function Dashboard() {
           <div className="flex justify-center py-12">
             <div className="w-8 h-8 border-4 border-emerald-500 border-t-transparent rounded-full animate-spin" />
           </div>
-        ) : activities.length === 0 ? (
+        ) : displayActivities.length === 0 ? (
           <div className={`text-center py-16 ${glass} rounded-3xl shadow-lg border-dashed`}>
             <Receipt size={64} className="mx-auto text-zinc-300 dark:text-zinc-600 mb-4" />
             <h3 className="text-xl font-semibold text-zinc-700 dark:text-zinc-300 mb-2">No activity yet</h3>
@@ -545,7 +562,7 @@ export default function Dashboard() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {activities.slice(0, showAllActivity ? undefined : 4).map((activity) => (
+            {displayActivities.slice(0, showAllActivity ? undefined : 6).map((activity) => (
               <motion.div
                 key={activity.id}
                 initial={{ opacity: 0, y: 10 }}
@@ -605,7 +622,7 @@ export default function Dashboard() {
                 {/* Mark as Wasted button for food scans */}
                 {activity.type === 'food' && (
                   <div className="mt-4 pt-3 border-t border-white/15 dark:border-zinc-700/20">
-                    {wastedItemTimestamps.has(activity.item) ? (
+                    {isWasted(activity) ? (
                       <div className="flex items-center gap-2 text-xs text-red-500 dark:text-red-400">
                         <Trash2 size={14} />
                         <span>Logged as wasted</span>
@@ -654,108 +671,72 @@ export default function Dashboard() {
             </div>
 
             <div className="p-6 overflow-y-auto flex-1">
-              <div className="flex flex-col md:flex-row gap-8">
-                <div className="w-full md:w-1/2">
-                  {selectedActivity.imageUrl ? (
-                    <div className={`rounded-2xl overflow-hidden ${glassInner} aspect-[3/4] relative`}>
-                      <img
-                        src={selectedActivity.imageUrl}
-                        alt="Original scan"
-                        className="w-full h-full object-contain absolute inset-0"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                  ) : (
-                    <div className={`rounded-2xl ${glassInner} aspect-[3/4] flex flex-col items-center justify-center text-zinc-400`}>
-                      <Receipt size={48} className="mb-4 opacity-50" />
-                      <p>No image saved</p>
-                    </div>
-                  )}
-                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-4 text-center">
+              {selectedActivity.type === 'receipt' ? (
+                <div>
+                  <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4">
+                    Found {selectedActivity.items?.length || 0} Items
+                  </h3>
+                  <div className={`${glassInner} rounded-xl p-4 max-h-[60vh] overflow-y-auto`}>
+                    <ul className="space-y-3">
+                      {selectedActivity.items?.map((item, idx) => (
+                        <li key={idx} className="flex items-start gap-3 text-zinc-700 dark:text-zinc-300">
+                          <div className="w-2 h-2 rounded-full bg-emerald-500 mt-2 shrink-0" />
+                          <span className="leading-relaxed">{item}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 mt-4">
                     Scanned on {new Date(selectedActivity.createdAt).toLocaleString()}
                   </p>
                 </div>
+              ) : (
+                <div className="space-y-6">
+                  <div className={`${glassInner} rounded-xl p-5`}>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 uppercase tracking-wider font-semibold mb-1">Detected Item</p>
+                    <p className="text-xl text-zinc-900 dark:text-zinc-100 capitalize font-bold">{selectedActivity.item}</p>
+                  </div>
 
-                <div className="w-full md:w-1/2">
-                  {selectedActivity.type === 'receipt' ? (
-                    <div>
-                      <h3 className="text-lg font-semibold text-zinc-900 dark:text-white mb-4">
-                        Found {selectedActivity.items?.length || 0} Items
-                      </h3>
-                      <div className={`${glassInner} rounded-xl p-4 max-h-[60vh] overflow-y-auto`}>
-                        <ul className="space-y-3">
-                          {selectedActivity.items?.map((item, idx) => (
-                            <li key={idx} className="flex items-start gap-3 text-zinc-700 dark:text-zinc-300">
-                              <div className="w-2 h-2 rounded-full bg-emerald-500 mt-2 shrink-0" />
-                              <span className="leading-relaxed">{item}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
+                  <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-5 border border-zinc-200 dark:border-zinc-700">
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400 uppercase tracking-wider font-semibold mb-3">Freshness Level</p>
+                    <div className="flex items-center gap-3 mb-2">
+                      <span className={`inline-block w-3 h-3 rounded-full ${
+                        selectedActivity.condition === 'fresh' ? 'bg-green-500' :
+                        selectedActivity.condition === 'ripe' ? 'bg-yellow-500' :
+                        selectedActivity.condition === 'aging' ? 'bg-orange-500' :
+                        selectedActivity.condition === 'overripe' ? 'bg-orange-600' :
+                        'bg-red-500'
+                      }`} />
+                      <span className="text-lg text-zinc-900 dark:text-zinc-100 capitalize font-semibold">{selectedActivity.condition}</span>
                     </div>
-                  ) : (
-                    <div className="space-y-6">
-                      <div className={`${glassInner} rounded-xl p-5`}>
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 uppercase tracking-wider font-semibold mb-1">Detected Item</p>
-                        <p className="text-xl text-zinc-900 dark:text-zinc-100 capitalize font-bold">{selectedActivity.item}</p>
-                      </div>
+                    <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
+                      selectedActivity.condition === 'fresh' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
+                      selectedActivity.condition === 'ripe' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
+                      selectedActivity.condition === 'aging' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
+                      selectedActivity.condition === 'overripe' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
+                      'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
+                    }`}>
+                      {selectedActivity.condition === 'fresh' && '✓ Best consumed now'}
+                      {selectedActivity.condition === 'ripe' && '○ Ready to eat'}
+                      {selectedActivity.condition === 'aging' && '⚠ Use soon'}
+                      {selectedActivity.condition === 'overripe' && '⚠ Best for cooking'}
+                      {selectedActivity.condition === 'spoiled' && '✗ Not safe to eat'}
+                    </div>
+                  </div>
 
-                      <div className="bg-zinc-50 dark:bg-zinc-800/50 rounded-xl p-5 border border-zinc-200 dark:border-zinc-700">
-                        <p className="text-xs text-zinc-500 dark:text-zinc-400 uppercase tracking-wider font-semibold mb-3">Freshness Level</p>
-                        <div className="flex items-center gap-3 mb-2">
-                          <span className={`inline-block w-3 h-3 rounded-full ${
-                            selectedActivity.condition === 'fresh' ? 'bg-green-500' :
-                            selectedActivity.condition === 'ripe' ? 'bg-yellow-500' :
-                            selectedActivity.condition === 'aging' ? 'bg-orange-500' :
-                            selectedActivity.condition === 'overripe' ? 'bg-orange-600' :
-                            'bg-red-500'
-                          }`} />
-                          <span className="text-lg text-zinc-900 dark:text-zinc-100 capitalize font-semibold">{selectedActivity.condition}</span>
-                        </div>
-                        <div className={`inline-block px-3 py-1 rounded-full text-xs font-medium ${
-                          selectedActivity.condition === 'fresh' ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300' :
-                          selectedActivity.condition === 'ripe' ? 'bg-yellow-100 dark:bg-yellow-900/30 text-yellow-700 dark:text-yellow-300' :
-                          selectedActivity.condition === 'aging' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
-                          selectedActivity.condition === 'overripe' ? 'bg-orange-100 dark:bg-orange-900/30 text-orange-700 dark:text-orange-300' :
-                          'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
-                        }`}>
-                          {selectedActivity.condition === 'fresh' && '✓ Best consumed now'}
-                          {selectedActivity.condition === 'ripe' && '○ Ready to eat'}
-                          {selectedActivity.condition === 'aging' && '⚠ Use soon'}
-                          {selectedActivity.condition === 'overripe' && '⚠ Best for cooking'}
-                          {selectedActivity.condition === 'spoiled' && '✗ Not safe to eat'}
-                        </div>
-                      </div>
+                  {selectedActivity.etaRange && (
+                    <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-5 border border-amber-200 dark:border-amber-800/30">
+                      <p className="text-xs text-amber-700 dark:text-amber-400 uppercase tracking-wider font-semibold mb-3">Time Until Spoilage</p>
+                      <p className="text-lg text-amber-900 dark:text-amber-100 font-semibold mb-4">⏱️ {selectedActivity.etaRange}</p>
 
-                      {selectedActivity.etaRange && (
-                        <div className="bg-amber-50 dark:bg-amber-900/20 rounded-xl p-5 border border-amber-200 dark:border-amber-800/30">
-                          <p className="text-xs text-amber-700 dark:text-amber-400 uppercase tracking-wider font-semibold mb-3">Time Until Spoilage</p>
-                          <p className="text-lg text-amber-900 dark:text-amber-100 font-semibold mb-4">⏱️ {selectedActivity.etaRange}</p>
-
-                          {selectedActivity.repurposingActions && selectedActivity.repurposingActions.length > 0 && (
-                            <div>
-                              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-3">What You Can Do:</p>
-                              <ul className="space-y-2">
-                                {selectedActivity.repurposingActions.map((action, idx) => (
-                                  <li key={idx} className="flex items-start gap-2 text-sm text-amber-900 dark:text-amber-100">
-                                    <span className="shrink-0 mt-0.5">→</span>
-                                    <span>{action}</span>
-                                  </li>
-                                ))}
-                              </ul>
-                            </div>
-                          )}
-                        </div>
-                      )}
-
-                      {selectedActivity.suggestions && selectedActivity.suggestions.length > 0 && (
+                      {selectedActivity.repurposingActions && selectedActivity.repurposingActions.length > 0 && (
                         <div>
-                          <h4 className="font-semibold text-zinc-900 dark:text-white mb-3">Usage Suggestions</h4>
-                          <ul className="space-y-3">
-                            {selectedActivity.suggestions.map((sug, idx) => (
-                              <li key={idx} className={`flex items-start gap-3 text-sm text-zinc-700 dark:text-zinc-300 ${glassInner} p-3 rounded-lg`}>
-                                <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
-                                <span className="leading-relaxed">{sug}</span>
+                          <p className="text-xs font-semibold text-amber-700 dark:text-amber-400 mb-3">What You Can Do:</p>
+                          <ul className="space-y-2">
+                            {selectedActivity.repurposingActions.map((action, idx) => (
+                              <li key={idx} className="flex items-start gap-2 text-sm text-amber-900 dark:text-amber-100">
+                                <span className="shrink-0 mt-0.5">→</span>
+                                <span>{action}</span>
                               </li>
                             ))}
                           </ul>
@@ -763,8 +744,26 @@ export default function Dashboard() {
                       )}
                     </div>
                   )}
+
+                  {selectedActivity.suggestions && selectedActivity.suggestions.length > 0 && (
+                    <div>
+                      <h4 className="font-semibold text-zinc-900 dark:text-white mb-3">Usage Suggestions</h4>
+                      <ul className="space-y-3">
+                        {selectedActivity.suggestions.map((sug, idx) => (
+                          <li key={idx} className={`flex items-start gap-3 text-sm text-zinc-700 dark:text-zinc-300 ${glassInner} p-3 rounded-lg`}>
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 shrink-0" />
+                            <span className="leading-relaxed">{sug}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <p className="text-sm text-zinc-500 dark:text-zinc-400 pt-4 border-t border-white/15 dark:border-zinc-700/20">
+                    Scanned on {new Date(selectedActivity.createdAt).toLocaleString()}
+                  </p>
                 </div>
-              </div>
+              )}
             </div>
           </motion.div>
         </div>

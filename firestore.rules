@@ -102,6 +102,15 @@ service cloud.firestore {
              (!('imageUrl' in data) || data.imageUrl == null || (data.imageUrl is string && data.imageUrl.size() < 2000));
     }
 
+    function isValidWasteLog(data) {
+      return hasRequiredFields(['userId', 'item', 'co2Impact', 'timestamp']) &&
+             data.userId is string &&
+             data.item is string && data.item.size() < 100 &&
+             data.co2Impact is number &&
+             data.timestamp is string && isValidDateString(data.timestamp) &&
+             (!('foodScanId' in data) || data.foodScanId == null || data.foodScanId is string);
+    }
+
     match /users/{userId} {
       allow read: if isOwner(userId);
       allow create: if isOwner(userId) && isValidUser(request.resource.data) && uidUnchanged();
@@ -120,6 +129,13 @@ service cloud.firestore {
       allow read: if isDocOwner();
       allow create: if isAuthenticated() && isValidFoodScan(request.resource.data) && userIdUnchanged();
       allow update: if isDocOwner() && isValidFoodScan(request.resource.data) && userIdNotModified() && request.resource.data.createdAt == resource.data.createdAt;
+      allow delete: if isDocOwner();
+    }
+
+    match /waste_logs/{wasteLogId} {
+      allow read: if isDocOwner();
+      allow create: if isAuthenticated() && isValidWasteLog(request.resource.data) && userIdUnchanged();
+      allow update: if isDocOwner() && isValidWasteLog(request.resource.data) && userIdNotModified();
       allow delete: if isDocOwner();
     }
   }
