@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { collection, query, where, onSnapshot, orderBy, addDoc, doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '../firebase';
 import { handleFirestoreError, OperationType } from '../firestoreError';
 import { ArrowLeft, Receipt, ShoppingBag, TrendingUp, UploadCloud, Loader2, Sun, Moon, Apple, X, User as UserIcon } from 'lucide-react';
@@ -10,6 +10,7 @@ import { processImage } from '../services/imageProcessor';
 import { uploadImageToStorage } from '../services/storageService';
 import { useTheme } from '../components/ThemeProvider';
 import Logo from '../components/Logo';
+import { listenToReceipts, listenToFoodScans, addReceipt, addFoodScan } from '../services/firestoreService';
 
 interface ReceiptData {
   id: string;
@@ -61,43 +62,25 @@ export default function Dashboard() {
   useEffect(() => {
     if (!auth.currentUser) return;
 
-    const qReceipts = query(
-      collection(db, 'receipts'),
-      where('userId', '==', auth.currentUser.uid),
-      orderBy('createdAt', 'desc')
-    );
-
-    const qFood = query(
-      collection(db, 'food_scans'),
-      where('userId', '==', auth.currentUser.uid),
-      orderBy('createdAt', 'desc')
-    );
-
     let receiptsData: ReceiptData[] = [];
     let foodData: FoodScanData[] = [];
 
     const updateActivities = () => {
-      const combined = [...receiptsData, ...foodData].sort((a, b) => 
+      const combined = [...receiptsData, ...foodData].sort((a, b) =>
         new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
       );
       setActivities(combined);
       setLoading(false);
     };
 
-    const unsubReceipts = onSnapshot(qReceipts, (snapshot) => {
-      receiptsData = snapshot.docs.map(doc => ({ id: doc.id, type: 'receipt', ...doc.data() } as ReceiptData));
+    const unsubReceipts = listenToReceipts(auth.currentUser.uid, (receipts) => {
+      receiptsData = receipts as ReceiptData[];
       updateActivities();
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'receipts');
-      setLoading(false);
     });
 
-    const unsubFood = onSnapshot(qFood, (snapshot) => {
-      foodData = snapshot.docs.map(doc => ({ id: doc.id, type: 'food', ...doc.data() } as FoodScanData));
+    const unsubFood = listenToFoodScans(auth.currentUser.uid, (foodScans) => {
+      foodData = foodScans as FoodScanData[];
       updateActivities();
-    }, (error) => {
-      handleFirestoreError(error, OperationType.LIST, 'food_scans');
-      setLoading(false);
     });
 
     return () => {
@@ -131,17 +114,15 @@ export default function Dashboard() {
           const now = new Date().toISOString();
           try {
             const imageUrl = await uploadImageToStorage(base64Data, userId);
-            
+
             if (res.type === 'receipt') {
-              await addDoc(collection(db, 'receipts'), {
-                userId,
+              await addReceipt(userId, {
                 items: res.items || [],
                 createdAt: now,
                 imageUrl: imageUrl || null
               });
             } else if (res.type === 'food') {
-              await addDoc(collection(db, 'food_scans'), {
-                userId,
+              await addFoodScan(userId, {
                 item: res.item || 'Unknown',
                 condition: res.condition || 'Unknown',
                 suggestions: res.suggestions || [],
@@ -151,7 +132,8 @@ export default function Dashboard() {
             }
           } catch (saveErr) {
             console.error("Error saving upload to Firestore:", saveErr);
-            alert("Processed successfully, but failed to save to dashboard.");
+            const errorMsg = saveErr instanceof Error ? saveErr.message : 'Unknown error';
+            alert(`Failed to save to database: ${errorMsg}`);
           }
         }
       }

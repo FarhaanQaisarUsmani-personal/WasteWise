@@ -1,0 +1,159 @@
+import { db } from "../firebase"
+import {
+  collection,
+  doc,
+  setDoc,
+  addDoc,
+  getDocs,
+  onSnapshot,
+  serverTimestamp,
+  query,
+  where,
+  orderBy
+} from "firebase/firestore"
+
+export async function createUser(user) {
+
+  const userRef = doc(db, "users", user.uid)
+
+  await setDoc(userRef, {
+    displayName: user.displayName || "",
+    email: user.email || "",
+    uid: user.uid,
+    createdAt: serverTimestamp()
+  }, { merge: true })
+
+}
+
+export async function addInventoryItem(userId, item) {
+
+  const inventoryRef = collection(db, "users", userId, "inventory")
+
+  await addDoc(inventoryRef, {
+    name: item.name,
+    freshness: item.freshness,
+    quantity: item.quantity || 1,
+    expiryDate: item.expiryDate || null,
+    imageUrl: item.imageUrl || null,
+    createdAt: serverTimestamp()
+  })
+
+}
+
+export async function getInventory(userId) {
+
+  const inventoryRef = collection(db, "users", userId, "inventory")
+
+  const snapshot = await getDocs(inventoryRef)
+
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  }))
+
+}
+
+export function listenToInventory(userId, callback) {
+
+  const inventoryRef = collection(db, "users", userId, "inventory")
+
+  return onSnapshot(inventoryRef, snapshot => {
+
+    const items = snapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }))
+
+    callback(items)
+
+  })
+
+}
+
+export async function addWasteLog(userId, waste) {
+
+  const wasteRef = collection(db, "users", userId, "wasteLogs")
+
+  await addDoc(wasteRef, {
+    food: waste.food,
+    quantity: waste.quantity,
+    co2Impact: waste.co2Impact || 0,
+    timestamp: serverTimestamp()
+  })
+
+}
+
+export async function getWasteLogs(userId) {
+
+  const wasteRef = collection(db, "users", userId, "wasteLogs")
+
+  const snapshot = await getDocs(wasteRef)
+
+  return snapshot.docs.map(doc => ({
+    id: doc.id,
+    ...doc.data()
+  }))
+
+}
+
+export async function addReceipt(userId, receipt) {
+
+  await addDoc(collection(db, 'receipts'), {
+    userId,
+    items: receipt.items || [],
+    createdAt: receipt.createdAt || new Date().toISOString(),
+    imageUrl: receipt.imageUrl || null
+  })
+
+}
+
+export async function addFoodScan(userId, foodScan) {
+
+  await addDoc(collection(db, 'food_scans'), {
+    userId,
+    item: foodScan.item || 'Unknown',
+    condition: foodScan.condition || 'Unknown',
+    suggestions: foodScan.suggestions || [],
+    createdAt: foodScan.createdAt || new Date().toISOString(),
+    imageUrl: foodScan.imageUrl || null
+  })
+
+}
+
+export function listenToReceipts(userId, callback) {
+
+  const qReceipts = query(
+    collection(db, 'receipts'),
+    where('userId', '==', userId),
+    orderBy('createdAt', 'desc')
+  )
+
+  return onSnapshot(qReceipts, snapshot => {
+    const receipts = snapshot.docs.map(doc => ({
+      id: doc.id,
+      type: 'receipt',
+      ...doc.data()
+    }))
+    callback(receipts)
+  })
+
+}
+
+export function listenToFoodScans(userId, callback) {
+
+  const qFood = query(
+    collection(db, 'food_scans'),
+    where('userId', '==', userId),
+    orderBy('createdAt', 'desc')
+  )
+
+  return onSnapshot(qFood, snapshot => {
+    const foodScans = snapshot.docs.map(doc => ({
+      id: doc.id,
+      type: 'food',
+      ...doc.data()
+    }))
+    callback(foodScans)
+  })
+
+}

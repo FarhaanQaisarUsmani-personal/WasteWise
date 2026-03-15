@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
 import { signInWithPopup } from 'firebase/auth';
 import { auth, googleProvider, db } from '../firebase';
-import { doc, getDoc, setDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
 import { motion } from 'motion/react';
 import { LogIn } from 'lucide-react';
 import { handleFirestoreError, OperationType } from '../firestoreError';
 import Logo from '../components/Logo';
+import { createUser } from '../services/firestoreService';
 
 export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
@@ -22,15 +23,7 @@ export default function LoginScreen() {
 
       if (!userSnap.exists()) {
         try {
-          const userData: any = {
-            uid: user.uid,
-            email: user.email,
-            createdAt: new Date().toISOString(),
-          };
-          if (user.displayName) {
-            userData.displayName = user.displayName;
-          }
-          await setDoc(userRef, userData);
+          await createUser(user);
         } catch (error) {
           handleFirestoreError(error, OperationType.CREATE, `users/${user.uid}`);
         }

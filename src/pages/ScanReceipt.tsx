@@ -5,7 +5,8 @@ import { ArrowLeft, Camera, CheckCircle2, Loader2, RefreshCw, AlertCircle, Scan,
 import { processImage, ProcessResult } from '../services/imageProcessor';
 import { uploadImageToStorage } from '../services/storageService';
 import { db, auth } from '../firebase';
-import { collection, addDoc, doc, getDoc } from 'firebase/firestore';
+import { doc, getDoc } from 'firebase/firestore';
+import { addReceipt, addFoodScan } from '../services/firestoreService';
 
 export default function ScanReceipt() {
   const navigate = useNavigate();
@@ -139,17 +140,15 @@ export default function ScanReceipt() {
               const now = new Date().toISOString();
               try {
                 const imageUrl = await uploadImageToStorage(base64Data, userId);
-                
+
                 if (res.type === 'receipt') {
-                  await addDoc(collection(db, 'receipts'), {
-                    userId,
+                  await addReceipt(userId, {
                     items: res.items || [],
                     createdAt: now,
                     imageUrl: imageUrl || null
                   });
                 } else if (res.type === 'food') {
-                  await addDoc(collection(db, 'food_scans'), {
-                    userId,
+                  await addFoodScan(userId, {
                     item: res.item || 'Unknown',
                     condition: res.condition || 'Unknown',
                     suggestions: res.suggestions || [],
@@ -159,6 +158,8 @@ export default function ScanReceipt() {
                 }
               } catch (saveErr) {
                 console.error("Error saving scan to Firestore:", saveErr);
+                setError("Failed to save scan. Please try again.");
+                return;
               }
             }
 
@@ -236,17 +237,15 @@ export default function ScanReceipt() {
           const now = new Date().toISOString();
           try {
             const imageUrl = await uploadImageToStorage(base64Data, userId);
-            
+
             if (res.type === 'receipt') {
-              await addDoc(collection(db, 'receipts'), {
-                userId,
+              await addReceipt(userId, {
                 items: res.items || [],
                 createdAt: now,
                 imageUrl: imageUrl || null
               });
             } else if (res.type === 'food') {
-              await addDoc(collection(db, 'food_scans'), {
-                userId,
+              await addFoodScan(userId, {
                 item: res.item || 'Unknown',
                 condition: res.condition || 'Unknown',
                 suggestions: res.suggestions || [],
@@ -256,6 +255,8 @@ export default function ScanReceipt() {
             }
           } catch (saveErr) {
             console.error("Error saving scan to Firestore:", saveErr);
+            setError("Failed to save scan. Please try again.");
+            return;
           }
         }
 
